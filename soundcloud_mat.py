@@ -108,8 +108,8 @@ class LSAFactorizer(object):
             for row in inf:
                 parts = row.strip().split()
                 row, col = parts
-                row_id = id_dict[row]
-                col_id = id_dict[col]
+                row_id = self.id_dict[row]
+                col_id = self.id_dict[col]
                 rows.append(row_id)
                 cols.append(col_id)
 
