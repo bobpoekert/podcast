@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # coding: utf-8
 from scipy.sparse import csr_matrix
 import gzip
@@ -184,7 +185,7 @@ class LSAFactorizer(object):
         if self._transformed is None:
             if path_exists(self.squished_fname):
                 self.load_squished(self.squished_fname)
-            else if self._is_fit:
+            elif self._is_fit:
                 self._transformed = self.squisher.transform(self.mat)
                 self.save_squished(self.squished_fname)
             else:
@@ -282,8 +283,7 @@ class LSAIndex(object):
 
     @property
     def cursor(self):
-        res = getattr(self.local, '_cursor', None)
-        if res is None:
+        if not hasattr(self.local, '_cursor'):
             self.local._cursor = self.index.construct_query_object()
         return self.local._cursor
 
