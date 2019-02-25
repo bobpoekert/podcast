@@ -117,7 +117,7 @@ crawl = crawler.Crawler(queue_db, handlers=soundcloud.get(), max_requests=10)
 
 start_user_id = '33831735' # this american life
 #start_user_id = '203413580' # joe rogan
-#crawl.push_job('user', {'user_id':start_user_id}, None)
+crawl.push_job('user', {'user_id':start_user_id}, None)
 
 crawl.start_job()
 

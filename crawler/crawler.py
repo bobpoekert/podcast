@@ -116,12 +116,14 @@ class Crawler(object):
 
     def start_job(self):
         print self.running_requests, self.max_requests
-        if self.n_reqs() < self.max_requests:
-            print 'pop'
+        while self.n_reqs() < self.max_requests:
+            print 'pop', self.running_requests
             job = self.pop_job()
             print job
             if job:
                 self.execute(*job)
+            else:
+                break
 
     def execute(self, _id, _type, payload, url):
         self.running_requests.add(_id)
