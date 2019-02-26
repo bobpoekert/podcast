@@ -1,0 +1,81 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <title>asdasd</title>
+        <style>
+            #content {
+                position: absolute;
+                width: 800px;
+                height: 600px;
+                left: 50%;
+                top: 50%;
+                margin-left: -400px;
+                margin-top: -300px;
+                border: 1px solid black;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+            #input {
+                width: 786px;
+            }
+            #outputs-wrapper {
+                height: 580px;
+                width: 800px;
+                overflow: auto;
+            }
+            #outputs div {
+                border-bottom: 1px dashed black;
+                padding: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="content">
+            <div id="outputs-wrapper">
+                <div id="outputs"></div>
+            </div>
+            <form id="form">
+                <input type="text" id="input">
+            </form>
+        </div>
+        <script>
+            document.getElementById('form').addEventListener('submit', function(evt) {
+                evt.preventDefault();
+                var input = document.getElementById('input').value;
+                var target = document.createElement('div');
+                target.appendChild(document.createTextNode(eval(input)));
+                document.getElementById('outputs').appendChild(target);
+                return false;
+            });
+            function log(msg) {
+                var row = document.createElement('div');
+                row.appendChild(document.createTextNode((new Date).getTime().toString() + ': ' + msg));
+                document.getElementById('outputs').appendChild(row);
+            }
+            window.n_hashes = 0;
+            function connect() {
+                var ws = new WebSocket('ws://localhost:1234');
+                log('connecting');
+                ws.onmessage = function(message) {
+                    var parts = message.data.split(' ');
+                    var id = parts[0];
+                    var content = parts[1];
+                    var hash = iTunes.signStorePlatformRequestData(content);
+                    ws.send(id + ' ' + hash);
+                    n_hashes += 1;
+                    if (n_hashes % 10000 == 0) log(n_hashes.toString());
+                };
+                ws.onerror = function(e) {
+                    log('error: ' + e.toString());
+                    ws.close();
+                }
+                ws.onclose = function(e) {
+                    log('closed');
+                    setTimeout(connect, 100);
+                };
+            }
+            connect();
+        </script>
+    </body>
+</html>

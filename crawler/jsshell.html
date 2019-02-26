@@ -1,0 +1,53 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <title>asdasd</title>
+        <style>
+            #content {
+                position: absolute;
+                width: 800px;
+                height: 600px;
+                left: 50%;
+                top: 50%;
+                margin-left: -400px;
+                margin-top: -300px;
+                border: 1px solid black;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+            #input {
+                width: 786px;
+            }
+            #outputs-wrapper {
+                height: 580px;
+                width: 800px;
+                overflow: auto;
+            }
+            #outputs div {
+                border-bottom: 1px dashed black;
+                padding: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="content">
+            <div id="outputs-wrapper">
+                <div id="outputs"></div>
+            </div>
+            <form id="form">
+                <input type="text" id="input">
+            </form>
+        </div>
+        <script>
+            document.getElementById('form').addEventListener('submit', function(evt) {
+                evt.preventDefault();
+                var input = document.getElementById('input').value;
+                var target = document.createElement('div');
+                target.appendChild(document.createTextNode(eval(input)));
+                document.getElementById('outputs').appendChild(target);
+                return false;
+            });
+        </script>
+    </body>
+</html>
