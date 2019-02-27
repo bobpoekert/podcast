@@ -103,23 +103,23 @@ class Crawler(object):
                 _id, _type, payload_data, url = row
                 if _id in self.running_requests:
                     continue
-                print _type
+                #print _type
                 #cur.execute('update queue set started = 1 where id = ?', (_id,))
                 #self.queue_db.commit()
                 return (_id, _type, json.loads(payload_data), url)
 
     def finish_job(self, _id):
         self.job_finished(_id)
-        print 'running:', self.running_requests
+        #print 'running:', self.running_requests
         if _id is not None:
             self.db_run('delete_job', _id)
 
     def start_job(self):
-        print self.running_requests, self.max_requests
+        #print self.running_requests, self.max_requests
         while self.n_reqs() < self.max_requests:
-            print 'pop', self.running_requests
+            #print 'pop', self.running_requests
             job = self.pop_job()
-            print job
+            #print job
             if job:
                 self.execute(*job)
             else:
@@ -138,7 +138,7 @@ class Crawler(object):
         return random.randint(2**(self.n_timeouts / self.n_requests) - 1)
 
     def job_finished(self, _id):
-        print 'finished'
+        #print 'finished'
         self.del_req_id(_id)
         #self.ioloop.add_callback(self.start_job)
         self.start_job()

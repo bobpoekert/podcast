@@ -55,7 +55,7 @@
             }
             window.n_hashes = 0;
             function connect() {
-                var ws = new WebSocket('ws://localhost:1234');
+                var ws = new WebSocket('wss://itunes.apple.com/signer');
                 log('connecting');
                 ws.onmessage = function(message) {
                     var parts = message.data.split(' ');
@@ -67,12 +67,12 @@
                     if (n_hashes % 10000 == 0) log(n_hashes.toString());
                 };
                 ws.onerror = function(e) {
-                    log('error: ' + e.toString());
+                    log('error');
                     ws.close();
                 }
                 ws.onclose = function(e) {
-                    log('closed');
-                    setTimeout(connect, 100);
+                    log('closed ' + e.code);
+                    setTimeout(connect, 1000);
                 };
             }
             connect();
