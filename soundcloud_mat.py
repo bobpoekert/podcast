@@ -55,6 +55,14 @@ def color(img, cmap='Spectral'):
 def plot(points, width=1280, height=1024, cmap='Spectral'):
     return color(shade(points, width, height), cmap)
 
+def csr_tofile(mat, fname):
+    with open(fname, 'wb') as outf:
+        pickle.dump(mat, outf)
+
+def csr_fromfile(fname):
+    with open(fname, 'rb') as inf:
+        return pickle.load(inf)
+
 class LSAFactorizer(object):
 
     def __init__(self, dirname, dims=128):
@@ -107,7 +115,11 @@ class LSAFactorizer(object):
         with self.tsv() as inf:
             for row in inf:
                 parts = row.strip().split()
-                row, col = parts
+                try:
+                    row, col = parts
+                except:
+                    print parts
+                    continue
                 row_id = self.id_dict[row]
                 col_id = self.id_dict[col]
                 rows.append(row_id)
@@ -146,31 +158,30 @@ class LSAFactorizer(object):
             pickle.dump(self._mat, outf)
 
     @property
-    def sample_idxes(self):
-        if self._sample_idxes is None:
-            self._sample_idxes = np.random.choice(self.mat.shape[0], 1000000, replace=False)
-        return self._sample_idxes
-
-    @property
-    def mat_sample_fname(self):
+    def mat_sample_idxes_fname(self):
         return path_join(self.dirname, 'soundcloud_sample_idxes.npy')
 
-    def load_mat_sample(self, fname):
-        self._mat_sample = np.fromfile(fname).astype(np.uint64)
+    def save_mat_sample_idxes(self, fname):
+        assert self._mat_sample_idxes is not None
+        self._mat_sample = csr_tofile(self._mat_sample_idxes, fname)
 
-    def save_mat_sample(self, fname):
-        assert self._mat_sample is not None
-        self._mat_sample.astype(np.uint64).tofile(fname)
+    def load_mat_sample_idxes(self, fname):
+        return csr_fromfile(fname)
+
+    @property
+    def sample_idxes(self):
+        if not hasattr(self, '_mat_sample_idxes') or self._mat_sample_idxes is None:
+            if path_exists(self.mat_sample_idxes_fname):
+                self._mat_sample_idxes = self.load_mat_sample_idxes(self.mat_sample_idxes_fname)
+            else:
+                self._mat_sample_idxes = np.random.choice(self.mat.shape[0], 1000000, replace=False)
+                self.save_mat_sample_idxes(self.mat_sample_idxes_fname)
+        return self._mat_sample_idxes
 
     @property
     def mat_sample(self):
-        if self._mat_sample is None:
-            if path_exists(self.mat_sample_fname):
-                self.load_mat_sample(self.mat_sample_fname)
-            else:
-                self._mat_sample = self.mat[self.sample_idxes]
-                self.save_mat_sample(self.mat_sample_fname)
-        return self._mat_sample
+        return self.mat[self.sample_idxes]
+
 
     def fit(self):
         self.squisher.fit(self.mat_sample)
