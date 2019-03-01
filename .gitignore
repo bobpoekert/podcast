@@ -3,3 +3,4 @@
 *.swn
 *.jsons.*
 *.sqlite
+.ipynb_checkpoints/

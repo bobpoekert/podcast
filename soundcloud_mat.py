@@ -65,7 +65,8 @@ def csr_fromfile(fname):
 
 class LSAFactorizer(object):
 
-    def __init__(self, dirname, dims=128):
+    def __init__(self, dirname, tsv_fname, dims=128):
+        self.tsv_fname = tsv_fname
         self.dims = dims
         self.dirname = dirname
         self._ids = None
@@ -78,26 +79,34 @@ class LSAFactorizer(object):
         self._transformed = None
         self._squished_2d = None
 
-    @property
-    def tsv_fname(self):
-        return path_join(self.dirname, 'soundcloud_graph.tsv.gz')
-
     def tsv(self):
         return gzip.open(self.tsv_fname, 'r')
 
     @property
+    def ids_fname(self):
+        return path_join(self.dirname, 'dim_ids.txt')
+
+    @property
     def ids(self):
         if self._ids is None:
-            id_ids = set([])
-            with self.tsv() as inf:
-                for row in inf:
-                    for col in row.strip().split():
-                        id_ids.add(col)
+            if path_exists(self.ids_fname):
+                with open(self.ids_fname, 'r') as inf:
+                    self._ids = [v.strip() for v in inf]
+            else:
+                id_ids = set([])
+                with self.tsv() as inf:
+                    for row in inf:
+                        for col in row.strip().split():
+                            id_ids.add(col)
 
-            id_ids = list(id_ids)
-            id_ids.sort()
+                id_ids = list(id_ids)
+                id_ids.sort()
 
-            self._ids = id_ids
+                self._ids = id_ids
+
+                with open(self.ids_fname, 'w') as outf:
+                    for _id in self._ids:
+                        outf.write('%s\n' % _id)
 
         return self._ids
 
@@ -118,7 +127,6 @@ class LSAFactorizer(object):
                 try:
                     row, col = parts
                 except:
-                    print parts
                     continue
                 row_id = self.id_dict[row]
                 col_id = self.id_dict[col]
@@ -320,6 +328,7 @@ def get_neighbors(lsa_index, db, where):
 if __name__ == '__main__':
     import sys
     dirname = sys.argv[1]
-    fact = LSAFactorizer(dirname)
+    tsv_fname = sys.argv[2]
+    fact = LSAFactorizer(dirname, tsv_fname)
     fact.fit()
     fact.squished
