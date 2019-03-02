@@ -30,10 +30,10 @@ $(soundcloud_dir)/urls.txt:
 		> $(soundcloud_dir)/urls.txt
 
 $(data_dir)/url_join.txt: $(soundcloud_dir)/urls.txt $(itunes_dir)/urls.txt
-	join -t' ' -1 2 -2 2 $(soundcloud_dir)/urls.txt $(itunes_dir)/urls.txt > $(data_dir)/url_join.txt
+	join -t ' ' -1 2 -2 2 $(soundcloud_dir)/urls.txt $(itunes_dir)/urls.txt > $(data_dir)/url_join.txt
 
 $(data_dir)/combined_graph.tsv.gz: $(data_dir)/url_join.txt $(itunes_dir)/itunes_graph.tsv.gz $(soundcloud_dir)/soundcloud_graph.tsv.gz
-	( ./combine_ids.py $(itunes_dir)/itunes_graph.tsv.gz $(data_dir)/url_join.txt; gunzip -c $(soundcloud_dir)/soundcloud_graph.tsv.gz ) | gzip -c > $(data_dir)/combined_graph.tsv.gz
+	./combine_ids.py $(itunes_dir)/itunes_graph.tsv.gz $(data_dir)/url_join.txt | gzip -c | cat - $(soundcloud_dir)/soundcloud_graph.tsv.gz > $(data_dir)/combined_graph.tsv.gz
 
 $(soundcloud_dir)/soundcloud_svd_128.npy: $(data_dir)/combined_graph.tsv.gz 
 	./soundcloud_mat.py $(soundcloud_dir) $(data_dir)/combined_graph.tsv.gz
