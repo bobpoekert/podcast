@@ -15,7 +15,7 @@ db = psycopg2.connect('')
 inp_dir = sys.argv[1]
 inp_fnames = [os.path.join(inp_dir, v) for v in os.listdir(inp_dir) if v.endswith('.jsons.xz')]
 
-n_workers = cpu_count() / 2
+n_workers = cpu_count() / 8
 fname_per_worker = ceil(len(inp_fnames) / n_workers)
 fname_batches = [inp_fnames[v:(v+fname_per_worker)] for v in range(0, len(inp_fnames), fname_per_worker)]
 
@@ -111,7 +111,7 @@ def expand_unicode(s):
         if c in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890_-:. ':
             res.append(c)
         else:
-            res.append('\\u%04x' % ord(c))
+            res.append(r'\\u%04x' % ord(c))
     return ''.join(res)
 
 def serialize_cols(cols):
@@ -191,10 +191,10 @@ def run_worker(proc_id, batch):
             if 'links' in data:
                 uid = data['user_id']
                 for link in data['links']:
-                    row_queue.put(('links', '%d\t%s\t%s\t%s\t%s' % (
+                    row_queue.put(('links', serialize_cols((
                         uid, link.get('url', r'___'),
                         link.get('username', r'___'), link.get('network', r'___'),
-                        link.get('title', r'___'))))
+                        link.get('title', r'___')))))
             elif 'likes' in data:
                 uid = data['user_id']
                 for like in data['likes']:
@@ -209,17 +209,17 @@ def run_worker(proc_id, batch):
                     if type(track['id']) != int:
                             print(track)
                             continue
-                    row_queue.put(('likes', '%r\t%r\t%s\t%s' % (uid, clean_id(track['id']), translate_timestamp(track['created_at']), track.get('kind', '___'))))
+                    row_queue.put(('likes', '%d\t%d\t%s\t%s' % (uid, clean_id(track['id']), translate_timestamp(track['created_at']), track.get('kind', '___'))))
             elif 'followers' in data:
                 from_id = data['user_id']
                 for user in data['followers']:
                     write_user(user)
-                    row_queue.put(('following', '%r\t%r' % (user['id'], from_id)))
+                    row_queue.put(('following', '%d\t%d' % (user['id'], from_id)))
             elif 'followings' in data:
                 from_id = data['user_id']
                 for user in data['followings']:
                     write_user(user)
-                    row_queue.put(('following', '%r\t%r' % (from_id, user['id'])))
+                    row_queue.put(('following', '%d\t%d' % (from_id, user['id'])))
         except:
             traceback.print_exc()
             continue
