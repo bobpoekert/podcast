@@ -51,11 +51,11 @@ track_boolean_cols = [v[0] for v in track_cols if v[1] == 'boolean']
 print(track_col_names)
 
 cur = db.cursor()
-cur.execute('create unlogged table if not exists soundcloud_links (user_id integer, url text, username text, network text, title text)')
-cur.execute('create unlogged table if not exists soundcloud_users (%s)' % user_cols_string)
-cur.execute('create unlogged table if not exists soundcloud_tracks (%s)' % track_cols_string)
-cur.execute('create unlogged table if not exists soundcloud_following (from_id integer, to_id integer)')
-cur.execute('create unlogged table if not exists soundcloud_likes (user_id integer, track_id integer, created_at timestamp, kind text)')
+cur.execute('create  table if not exists soundcloud_links (user_id integer, url text, username text, network text, title text)')
+cur.execute('create  table if not exists soundcloud_users (%s)' % user_cols_string)
+cur.execute('create  table if not exists soundcloud_tracks (%s)' % track_cols_string)
+cur.execute('create  table if not exists soundcloud_following (from_id integer, to_id integer)')
+cur.execute('create  table if not exists soundcloud_likes (user_id integer, track_id integer, created_at timestamp, kind text)')
 db.commit()
 
 links_r, links_w = os.pipe()
