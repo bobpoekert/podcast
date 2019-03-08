@@ -83,18 +83,14 @@ class TextEmbedding(gluon.Block):
             self.input = gluon.nn.Dense(n_words, activation='relu')
             self.input_squish_1 = gluon.nn.Dense(int(n_words / 2), activation='relu')
             self.input_squish_2 = gluon.nn.Dense(int(n_words / 4), activation='relu')
-            self.inner_squish = gluon.nn.Dense(vec_dims, activation='relu')
-            self.dropout1 = gluon.nn.Dropout(0.5)
-            self.dropout2 = gluon.nn.Dropout(0.5)
+            self.input_squish_3 = gluon.nn.Dense(512, activation='relu')
             self.outp = gluon.nn.Dense(vec_dims + n_words)
 
     def forward(self, x):
         x = self.input(x)
         x = self.input_squish_1(x)
-        x = self.dropout1(x)
         x = self.input_squish_2(x)
-        x = self.dropout2(x)
-        x = self.inner_squish(x)
+        x = self.input_squish_3(x)
         x = self.outp(x)
         return x
 
@@ -132,24 +128,25 @@ def fit_text_embedding(data_fname, params_fname, ctx, epochs):
             target_train = nd.concat(bags_train, vecs_train, dim=1)
             target_test = nd.concat(bags_test, vecs_test, dim=1)
 
-            with autograd.record():
-                outp = net(bags_train)
-                loss = l1_loss(target_train, outp)
-            loss.backward()
-            trainer.step(bags_train.shape[0])
+            for i in range(100):
+                with autograd.record():
+                    outp = net(bags_train)
+                    loss = l1_loss(target_train, outp)
+                loss.backward()
+                trainer.step(bags_train.shape[0])
 
-            loss_scalar = nd.sum(loss).asscalar()
+                loss_scalar = nd.sum(loss).asscalar()
 
-            cumulative_loss += loss_scalar
+                cumulative_loss += loss_scalar
 
-            test_output = net(bags_test)
+                test_output = net(bags_test)
 
-            test_loss = l1_loss(target_test, test_output)
-            test_loss = nd.sum(test_loss).asscalar()
+                test_loss = l1_loss(target_test, test_output)
+                test_loss = nd.sum(test_loss).asscalar()
 
 
-            print('Epoch: %d, Train loss: %s, Test loss: %s, Cumulative loss: %s' % (
-                epoch, loss_scalar / target_train.shape[0], test_loss / target_test.shape[0], cumulative_loss / epoch))
+                print('Epoch: %d, Train loss: %s, Test loss: %s, Cumulative loss: %s' % (
+                    epoch, loss_scalar / target_train.shape[0], test_loss / target_test.shape[0], cumulative_loss / epoch))
 
             epoch += 1
             if epoch > epochs:
