@@ -11,69 +11,10 @@ from mmap import mmap
 import threading
 from queue import Queue
 from numba import jit
+from bow_reader import *
 
 BOWRow = namedtuple('BOWRow', 'user_id bag vec')
 
-vec_dims = 128
-n_words = 10098
-
-class BOWReader(object):
-
-    def __init__(self, infname, batch_size=4096):
-        self.infname = infname
-        self.batch_size = batch_size
-        self.file_size = os.stat(infname).st_size
-        self.inf = gzip.open(infname, 'r')
-        self.outp_queue = Queue(maxsize=2)
-
-    def __len__(self):
-        return self.file_size / self.row_size
-
-    @property
-    def vec_size(self):
-        return vec_dims * 8
-
-    @property
-    def bag_size(self):
-        return n_words * 4
-
-    @property
-    def row_size(self):
-        return 8 + self.vec_size + self.bag_size
-
-    def get_batch(self):
-        user_ids = np.zeros((self.batch_size,), dtype=np.uint64)
-        bags = np.zeros((self.batch_size, n_words), dtype=np.uint32)
-        vecs = np.zeros((self.batch_size, vec_dims), dtype=np.float64)
-
-        for i in range(self.batch_size):
-            while 1:
-                try:
-                    blob = self.inf.read(self.row_size)
-                    break
-                except:
-                    self.inf.close()
-                    self.inf = gzip.open(self.infname, 'r')
-            user_id = struct.unpack('<Q', blob[:8])[0]
-            bag = np.frombuffer(blob[8:(8 + self.bag_size)], dtype=np.uint32)
-            vec = np.frombuffer(blob[(8 + self.bag_size):], dtype=np.float64)
-
-            user_ids[i] = user_id
-            bags[i] = bag
-            vecs[i] = vec
-
-        return user_ids, bags, vecs
-
-    def batch_worker(self):
-        while 1:
-            self.outp_queue.put(self.get_batch())
-
-    def get_batches(self):
-        thread = threading.Thread(target=self.batch_worker)
-        thread.daemon = True
-        thread.start()
-        while 1:
-            yield self.outp_queue.get()
 
 class WeightedHuberLoss(gluon.loss.Loss):
     r"""Calculates smoothed L1 loss that is equal to L1 loss if absolute error

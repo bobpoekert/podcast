@@ -15,7 +15,7 @@ db = psycopg2.connect('')
 inp_dir = sys.argv[1]
 inp_fnames = [os.path.join(inp_dir, v) for v in os.listdir(inp_dir) if v.endswith('.jsons.xz')]
 
-n_workers = cpu_count() / 8
+n_workers = cpu_count()
 fname_per_worker = ceil(len(inp_fnames) / n_workers)
 fname_batches = [inp_fnames[v:(v+fname_per_worker)] for v in range(0, len(inp_fnames), fname_per_worker)]
 
