@@ -133,7 +133,7 @@ class FitBatches(object):
             self.clustering.partial_fit(minibatch)
 
     @classmethod
-    def fit(cls, vec_128, n_clusters=4096, n_threads=None):
+    def fit(cls, vec_128, n_clusters=512, n_threads=None):
         threads = []
         n_threads = 12
         batch_size = int(vec_128.shape[0] / n_threads)
@@ -267,12 +267,12 @@ def pg_get_itunes():
 
 if __name__ == '__main__':
     import pickle
-    fact = soundcloud_mat.LSAFactorizer('/mnt/lappy2/soundcloud/', '/mnt/lappy2/combined_graph.tsv.gz')
+    fact = soundcloud_mat.LSAFactorizer('/mnt/lappy/soundcloud/', '/mnt/lappy/combined_graph.tsv.gz')
     print('fact')
-    clusters = Clusters(fact, 'cluster_centers_128_4096.npy')
+    clusters = Clusters(fact, 'cluster_centers_128_512.npy')
     print('clusters')
-    dists = WordDistributions(clusters, '/mnt/lappy2/url_join.txt', 'itunes_soundcloud_ids.txt')
-    print('dists')
-    res = dists.fit(pg_get_itunes())
-    with open('token_dists.pickle', 'wb') as outf:
-        pickle.dump(res, outf)
+    #dists = WordDistributions(clusters, '/mnt/lappy/url_join.txt', 'itunes_soundcloud_ids.txt')
+    #print('dists')
+    #res = dists.fit(pg_get_itunes())
+    #with open('token_dists.pickle', 'wb') as outf:
+    #    pickle.dump(res, outf)
