@@ -52,10 +52,22 @@ let rec _xml_text res node =
 
 let xml_text node = _xml_text [] node
 
+let splitter_re = Re.Pcre.regexp "[^a-zA-Z0-9]+"
+
+let rec _clean_tokens tokens res =
+  match tokens with
+  | [] -> res
+  | h :: t ->
+    match h with
+    | `Text(v) -> _clean_tokens t (v :: res)
+    | `Delim(_) -> _clean_tokens t res
+
+let clean_tokens tokens = _clean_tokens tokens []
+
 let tokenize_text (inp : text_value) = 
   match inp with
   | Tag(v) -> [v]
-  | Text(v) -> Tokenize.tokenize v
+  | Text(v) -> clean_tokens (Re.split_full splitter_re v)
 
 let rec _channel_meta_text res xml =
   match xml with
@@ -160,3 +172,37 @@ let process_file topics fname outs =
     let res_string = Printf.sprintf "%s\t%s\t%s\n" rss_url guid vec_string in 
     Gzip.output_substring outs res_string 0 (String.length res_string)
   )
+
+let range n = List.init n (fun x -> x)
+
+let process_batch hists outfname part =
+  let outf = open_out outfname in 
+  let outs = Gzip.open_out_chan outf in 
+  try
+    for inf_idx = 0 to (Array.length part) do 
+      process_file hists (Array.get part inf_idx) outs
+    done
+  with e ->
+    Gzip.close_out outs;
+    close_out outf;
+    raise e
+
+let () =
+  let argc = (Array.length Sys.argv) - 1 in 
+  let outfname = Sys.argv.(1) in
+  let hist_basename = Sys.argv.(2) in
+  let n_hists = int_of_string Sys.argv.(3) in
+  let n_infiles = argc - 3 in
+  let n_cores = Nativeint.to_int (Corecount.count ()) in 
+  let partition_size = n_infiles / n_cores in
+  let hists = List.map (fun idx -> Histogram.load (Printf.sprintf "%s%d" hist_basename idx)) (range n_hists) in
+  let pids = List.map (fun part_idx -> 
+    let part_start = part_idx * partition_size in 
+    let part = Array.sub Sys.argv (part_start + 3) (part_start + 3 + partition_size) in 
+    let pid = Unix.fork () in 
+    if pid == 0 then
+      (process_batch hists (Printf.sprintf "%s%d" outfname part_idx) part;
+      exit 0)
+    else pid) (range n_cores) in 
+  List.iter (fun pid -> let _ = (Unix.waitpid [] pid) in ()) pids;
+  exit 0;

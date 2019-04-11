@@ -1,4 +1,5 @@
 B /Users/bob/.opam/4.07.0/lib/camlzip/../zip
+B /Users/bob/.opam/4.07.0/lib/corecount
 B /Users/bob/.opam/4.07.0/lib/ocaml
 B /Users/bob/.opam/4.07.0/lib/re
 B /Users/bob/.opam/4.07.0/lib/seq
@@ -6,6 +7,7 @@ B /Users/bob/.opam/4.07.0/lib/xml-light
 B _build/default/.rss_extract.eobjs
 B _build/default/histogram/.histogram.objs
 S /Users/bob/.opam/4.07.0/lib/camlzip/../zip
+S /Users/bob/.opam/4.07.0/lib/corecount
 S /Users/bob/.opam/4.07.0/lib/ocaml
 S /Users/bob/.opam/4.07.0/lib/re
 S /Users/bob/.opam/4.07.0/lib/seq
