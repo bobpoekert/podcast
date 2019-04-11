@@ -28,7 +28,7 @@ AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient", max_cli
 
 itunes_ip = '104.69.19.120'
 
-base_podcast_url = 'https://' + itunes_ip + '/WebObjects/MZStore.woa/wa/viewPodcast?mt=2&id=%s'
+base_podcast_url = 'https://' + itunes_ip + '/WebObjects/MZStore.woa/wa/viewPodcast?id=%s'
 base_podcast_host = 'itunes.apple.com'
 
 base_info_url = 'https://' + itunes_ip + '/WebObjects/MZStorePlatform.woa/wa/lookup?id=%(ids)s&p=item&caller=DI6&requestParameters=%%5Bobject%%20Object%%5D&version=1&X-JS-SP-TOKEN=%(token)s&X-JS-TIMESTAMP=%(timestamp)d'
@@ -133,11 +133,6 @@ def get(url, host):
         'Host': host,
         'User-Agent':'iTunes/12.8.2 (Macintosh; OS X 10.11.6) AppleWebKit/601.7.8 (dt:1)',
         'x-apple-store-front':'143441-1,32',
-        #'x-apple-i-md-rinfo': '17106176',
-        #'x-apple-i-md-m':    'fZBobF3EL3WCeAW8rV70u70sVFTrpFbP7RuL/CDKbqT2uLuul0zMPT/1KU2zEZ57sUnmmfidystggy17',
-        #'origin': 'https://itunes.apple.com',
-        #'x-apple-i-md':  'AAAABQAAABAaQZ0PEUmWoMkDVlfcxS+fAAAAAQ==',
-        #'cookie':    'groupingPillToken=2_audioPodcasts; xp_ci=3z2oUPeTzDf7z4avzD6szusHqyZBi',
         'referer':'https://itunes.apple.com/WebObjects/MZStore.woa/wa/viewGrouping?cc=us&id=33'
         },
         validate_cert=False,
@@ -153,7 +148,7 @@ def get_linking_ids(page_data):
     res = set([])
     res.update(data['listenersAlsoBought'])
     res.update(data['topPodcastsInGenre'])
-    res.update(data['popularityMap']['podcastEpisode'].keys())
+    #res.update(data['popularityMap']['podcastEpisode'].keys())
     return res
 
 import sys
@@ -217,8 +212,12 @@ def get_podcast(podcast_id=None):
 
 crawl = crawler.Crawler(queue_db, handlers=itunes.get(), max_requests=100)
 
-start_user_id = '258530615'
+#start_user_id = '258530615'
+start_user_id = '360084272' # joe rogan
 crawl.push_job('podcast', {'podcast_id':start_user_id}, 'podcast:%s' % start_user_id)
+
+start_user_id2 = '1342684917' # c&en
+crawl.push_job('podcast', {'podcast_id':start_user_id2}, 'podcast:%s' % start_user_id2)
 
 
 crawl.start_job()

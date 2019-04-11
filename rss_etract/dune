@@ -1,0 +1,3 @@
+(executable
+    (name rss_extract)
+    (libraries xml-light camlzip re histogram))
