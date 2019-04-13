@@ -1,0 +1,3 @@
+(library
+    (name histogram)
+    (c_names histogram_stubs))

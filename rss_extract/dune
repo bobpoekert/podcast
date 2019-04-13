@@ -1,0 +1,3 @@
+(executable
+    (name rss_extract)
+    (libraries lib_rss_extract corecount))

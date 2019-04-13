@@ -1,0 +1,4 @@
+(library
+    (name lib_rss_extract)
+    (libraries xml-light camlzip re warc histogram))
+

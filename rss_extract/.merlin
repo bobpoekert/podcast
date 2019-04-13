@@ -1,0 +1,21 @@
+B /Users/bob/.opam/4.07.0/lib/camlzip/../zip
+B /Users/bob/.opam/4.07.0/lib/corecount
+B /Users/bob/.opam/4.07.0/lib/ocaml
+B /Users/bob/.opam/4.07.0/lib/re
+B /Users/bob/.opam/4.07.0/lib/seq
+B /Users/bob/.opam/4.07.0/lib/xml-light
+B _build/default/.rss_extract.eobjs
+B _build/default/lib/.lib_rss_extract.objs
+B _build/default/lib/histogram/.histogram.objs
+B _build/default/lib/warc/.warc.objs
+S /Users/bob/.opam/4.07.0/lib/camlzip/../zip
+S /Users/bob/.opam/4.07.0/lib/corecount
+S /Users/bob/.opam/4.07.0/lib/ocaml
+S /Users/bob/.opam/4.07.0/lib/re
+S /Users/bob/.opam/4.07.0/lib/seq
+S /Users/bob/.opam/4.07.0/lib/xml-light
+S .
+S lib
+S lib/histogram
+S lib/warc
+FLG -w @a-4-29-40-41-42-44-45-48-58-59-60-40 -strict-sequence -strict-formats -short-paths -keep-locs
