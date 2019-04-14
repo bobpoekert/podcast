@@ -3,6 +3,65 @@ type header = header_row list
 type warc_entry = (header * string)
 type warc_page = (warc_entry * warc_entry) (* request, response *)
 
+exception Incomplete_request
+exception Invalid_request of string
+
+open Cohttp
+
+module String_io = Cohttp__String_io
+module StringResponse = Response.Make(String_io.M)
+
+let allowed_body response = (* rfc7230#section-5.7.1 *)
+    match Response.status response with
+    | #Code.informational_status | `No_content | `Not_modified -> false
+    | #Code.status_code -> true
+
+let has_body response =
+  if allowed_body response
+  then Transfer.has_body (Response.encoding response)
+  else `No
+
+let rec _consume_chunks rdr res tot_size =
+  match StringResponse.read_body_chunk rdr with
+  | Transfer.Final_chunk(v) -> ((v :: res), (tot_size + String.length v))
+  | Transfer.Done -> (res, tot_size)
+  | Transfer.Chunk(v) -> _consume_chunks rdr (v :: res) (tot_size + String.length v)
+
+let rec _list_into_bytes res lst off =
+  match lst with 
+  | [] -> ()
+  | s :: t -> (let slen = String.length s in 
+    Bytes.blit_string s 0 res (off - slen) slen; 
+    if off > slen then _list_into_bytes res t (off - slen)
+  )
+
+let consume_chunks rdr =
+  let chunk_list, res_size = _consume_chunks rdr [] 0 in 
+  match chunk_list with
+  | v :: [] -> v 
+  | [] -> "" 
+  | chunk_list -> (
+    let res = Bytes.create res_size in
+    _list_into_bytes res chunk_list res_size;
+    Bytes.to_string res
+  )
+
+let parse_response_body inp : (Response.t * string) =
+  let inp = String_io.open_in inp in 
+  let head = StringResponse.read inp in 
+  let head = (match head with
+  | `Eof -> raise Incomplete_request
+  | `Invalid(v) -> raise (Invalid_request v)
+  | `Ok(v) -> v) in
+  (
+     match has_body head with
+     | `No -> (head, "")
+     | `Unknown | `Yes -> (
+        let reader = StringResponse.make_body_reader head inp in
+        (head, consume_chunks reader)
+    )
+  )
+
 let rec _readline res ins =
   let c = Gzip.input_char ins in
   match c with
@@ -55,7 +114,6 @@ let next_entry (ins : Gzip.in_channel) : warc_entry =
     let _ = readline ins in (* throw away blank line *)
     (header_fields, body)
 
-exception Incomplete_request_error
 
 let rec _next_page (req : warc_entry option) (inp : Gzip.in_channel) : (warc_entry * warc_entry) =
   let entry = next_entry inp in
@@ -65,7 +123,7 @@ let rec _next_page (req : warc_entry option) (inp : Gzip.in_channel) : (warc_ent
   | "request" -> (_next_page (Some entry) inp)
   | "response" -> (match req with
     | Some(r) -> (r, entry)
-    | None -> raise Incomplete_request_error)
+    | None -> raise Incomplete_request)
   | _ -> (_next_page req inp)
 
 let next_page inp = _next_page None inp
@@ -73,10 +131,11 @@ let next_page inp = _next_page None inp
 let rec _iter_pages inp thunk =
   try
     let page = next_page inp in
-      thunk page; _iter_pages inp thunk
+    let _ = thunk page in
+    _iter_pages inp thunk
   with
   | End_of_file -> ()
-  | Incomplete_request_error -> _iter_pages inp thunk
+  | Incomplete_request -> _iter_pages inp thunk
 
 let iter_pages inp thunk = _iter_pages inp thunk
 

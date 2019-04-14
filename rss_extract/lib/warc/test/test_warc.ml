@@ -1,4 +1,5 @@
 open OUnit2
+open Cohttp
 
 let with_test_warc_file thunk =
   let cwd = Sys.getcwd () in 
@@ -55,10 +56,22 @@ let test_hashes _test_ctx =
     )
   )
 
+let test_response_parse _test_ctx =
+  with_test_warc_file (fun inf ->
+    Warc.iter_pages inf (fun page ->
+      let rsp = Warc.get_rsp page in 
+      let body = Warc.get_body rsp in 
+      let hrsp, _hbody = Warc.parse_response_body body in 
+      let response_code = Code.code_of_status (Response.status hrsp) in 
+      assert_bool "valid code" (response_code == 200 || response_code == 404);
+    )
+  )
+
 let suite = 
   "suite">::: [
     "first_entry">:: test_first_entry;
-    "hashes">:: test_hashes
+    "hashes">:: test_hashes;
+    "parse">:: test_response_parse
   ]
 
 let () =

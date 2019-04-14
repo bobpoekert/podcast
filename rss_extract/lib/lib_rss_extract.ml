@@ -1,35 +1,26 @@
-let rec _crlf_pair_idx inp start stop =
-  if (stop - start) < 4 then
-    None
-  else
-    let cr_idx = String.index_from inp start '\r' in
-    if (stop - cr_idx) < 4 then None
-    else if (String.get inp (cr_idx + 1)) == '\n' &&
-       (String.get inp (cr_idx + 2)) == '\r' &&
-       (String.get inp (cr_idx + 3)) == '\n' then
-       Some(cr_idx + 4)
-    else
-      _crlf_pair_idx inp cr_idx stop
+open Cohttp
+
 
 let body_string inp =
-  let tot_len = String.length inp in
-  match _crlf_pair_idx inp 0 tot_len with
-  | None -> None
-  | Some(idx) -> Some(String.sub inp idx tot_len)
+  let _rsp, body = Warc.parse_response_body inp in 
+  body
 
 let body_xml inp =
-  match body_string inp with
-  | None -> None
-  | Some(s) -> Some(Xml.parse_string s)
+  let _rsp, body = Warc.parse_response_body inp in
+  Xml.parse_string body
+
+let response_code rsp =
+  Code.code_of_status (Response.status rsp)
 
 let page_iter_callback thunk (page : Warc.warc_page) =
   let req = Warc.get_req page in 
   let rsp = Warc.get_rsp page in
-  let body = Warc.get_body rsp in 
-  let header = Warc.get_headers rsp in 
-  match body_xml body with 
-  | None -> ()
-  | Some(xml) -> thunk req header xml
+  let body = Warc.get_body rsp in
+  let hrsp, body = Warc.parse_response_body body in 
+  if (response_code hrsp) == 200 then
+    let header = Warc.get_headers rsp in
+    let xml = body_xml body in
+    thunk req header xml
 
 let iter_xml_pages fname thunk = 
   let inf = Warc.load_file fname in

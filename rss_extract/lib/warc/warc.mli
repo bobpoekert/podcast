@@ -14,3 +14,4 @@ val get_rsp : warc_page -> warc_entry
 val get_headers : warc_entry -> header
 val get_header : header -> string -> string
 val get_body : warc_entry -> string
+val parse_response_body : string -> (Cohttp.Response.t * string)
