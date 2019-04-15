@@ -89,24 +89,21 @@ class LSAFactorizer(object):
     @property
     def ids(self):
         if self._ids is None:
-            if path_exists(self.ids_fname):
-                with open(self.ids_fname, 'r') as inf:
-                    self._ids = [v.strip() for v in inf]
-            else:
-                id_ids = set([])
-                with self.tsv() as inf:
-                    for row in inf:
-                        for col in row.strip().split():
-                            id_ids.add(col)
+            id_ids = set([])
+            with self.tsv() as inf:
+                for row in inf:
+                    for col in row.strip().split():
+                        id_ids.add(col)
 
-                id_ids = list(id_ids)
-                id_ids.sort()
+            id_ids = list(id_ids)
+            id_ids.sort()
 
-                self._ids = id_ids
+            self._ids = id_ids
 
-                with open(self.ids_fname, 'w') as outf:
-                    for _id in self._ids:
-                        outf.write('%s\n' % _id)
+            with open(self.ids_fname, 'wb') as outf:
+                for _id in self._ids:
+                    outf.write(_id)
+                    outf.write(b'\n')
 
         return self._ids
 

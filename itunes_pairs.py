@@ -16,7 +16,10 @@ def get_pairs(blob):
 if __name__ == '__main__':
     import sys
     for row in sys.stdin:
-        blob = json.loads(row.strip())
+        try:
+            blob = json.loads(row.strip())
+        except:
+            continue
         for k, v in get_pairs(blob):
-            print('%s %s' % (k, v))
+            print('%s\t%s' % (k, v))
 
