@@ -72,10 +72,6 @@ let readline ins =
   let buf = _readline (Buffer.create 4096) ins in 
   Bytes.to_string (Buffer.to_bytes buf)
 
-let string_stripper = Re.Pcre.regexp "^\\s*(.*?)\\s*$"
-
-let strip s = Re.Group.get (Re.exec string_stripper s) 1
-
 let rec _parse_headers fields ins =
   let line = readline ins in 
   match line with
@@ -85,8 +81,8 @@ let rec _parse_headers fields ins =
     let strlen = String.length line in
     let colon_idx = String.index line ':' in
     let k = String.sub line 0 colon_idx in 
-    let v = String.sub line (colon_idx + 2) (strlen - colon_idx - 2) in 
-    _parse_headers ((k, (strip v)) :: fields) ins
+    let v = String.sub line (colon_idx + 2) (strlen - colon_idx - 3) in 
+    _parse_headers ((k, v) :: fields) ins
 
 let parse_headers ins = _parse_headers [] ins
 
@@ -108,7 +104,7 @@ let read_gz_bytes n_bytes inf =
 let next_entry (ins : Gzip.in_channel) : warc_entry =
     let header_fields = parse_headers ins in
     let length_field = get_header header_fields "Content-Length" in
-    let length_int = int_of_string (strip length_field) in
+    let length_int = int_of_string length_field in
     let body = read_gz_bytes length_int ins in
     let _ = readline ins in (* throw away blank line *)
     let _ = readline ins in (* throw away blank line *)
@@ -118,7 +114,7 @@ let next_entry (ins : Gzip.in_channel) : warc_entry =
 let rec _next_page (req : warc_entry option) (inp : Gzip.in_channel) : (warc_entry * warc_entry) =
   let entry = next_entry inp in
   let headers, _ = entry in
-  let warc_type = strip (get_header headers "WARC-Type") in
+  let warc_type = get_header headers "WARC-Type" in
   match warc_type with
   | "request" -> (_next_page (Some entry) inp)
   | "response" -> (match req with
