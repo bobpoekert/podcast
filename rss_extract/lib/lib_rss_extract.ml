@@ -19,8 +19,8 @@ let page_iter_callback thunk (page : Warc.warc_page) =
   let hrsp, body = Warc.parse_response_body body in 
   if (response_code hrsp) == 200 then
     let header = Warc.get_headers rsp in
-    let xml = body_xml body in
-    thunk req header xml
+    let xml = Xml.parse_string body in
+    thunk req header hrsp xml
 
 let iter_xml_pages fname thunk = 
   let inf = Warc.load_file fname in
@@ -59,6 +59,11 @@ let tokenize_text (inp : text_value) =
   match inp with
   | Tag(v) -> [v]
   | Text(v) -> clean_tokens (Re.split_full splitter_re v)
+
+let unwrap_text_value (inp : text_value) = 
+  match inp with
+  | Tag(v) -> v
+  | Text(v) -> v
 
 let rec _channel_meta_text res xml =
   match xml with
@@ -101,7 +106,7 @@ let hist_update h k =
   let prev =
     try Hashtbl.find h k
     with Not_found -> 0 in
-  Hashtbl.add h k (prev + 1)
+  Hashtbl.replace h k (prev + 1)
 
 let into_histogram h items =
   List.iter (hist_update h) items
@@ -118,7 +123,7 @@ let item_guid item_xml =
     | None -> None
 
 let iter_word_histograms fname thunk =
-  iter_xml_pages fname (fun (req : Warc.warc_entry) (headers : Warc.header) xml ->
+  iter_xml_pages fname (fun (req : Warc.warc_entry) (headers : Warc.header) _head xml ->
     let meta_text = channel_meta_text xml in 
     let meta_hist = Hashtbl.create 4096 in
     List.iter (words_into_histogram meta_hist) meta_text;

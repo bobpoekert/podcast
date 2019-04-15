@@ -49,16 +49,16 @@ let consume_chunks rdr =
 let parse_response_body inp : (Response.t * string) =
   let inp = String_io.open_in inp in 
   let head = StringResponse.read inp in 
-  let head = (match head with
+  match head with
   | `Eof -> raise Incomplete_request
   | `Invalid(v) -> raise (Invalid_request v)
-  | `Ok(v) -> v) in
+  | `Ok(head) -> 
   (
-     match has_body head with
-     | `No -> (head, "")
-     | `Unknown | `Yes -> (
-        let reader = StringResponse.make_body_reader head inp in
-        (head, consume_chunks reader)
+    match has_body head with
+    | `No -> (head, "")
+    | `Unknown | `Yes -> (
+      let reader = StringResponse.make_body_reader head inp in
+      (head, consume_chunks reader)
     )
   )
 
@@ -130,9 +130,10 @@ let next_page inp = _next_page None inp
 
 let rec _iter_pages inp thunk =
   try
-    let page = next_page inp in
-    let _ = thunk page in
-    _iter_pages inp thunk
+    while true do
+      let page = next_page inp in
+      thunk page;
+    done
   with
   | End_of_file -> ()
   | Incomplete_request -> _iter_pages inp thunk
