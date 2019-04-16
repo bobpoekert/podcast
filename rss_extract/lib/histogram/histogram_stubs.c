@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 
 #include "murmur3.h"
@@ -20,33 +21,89 @@ typedef struct Histogram {
 
 } Histogram;
 
-char Histogram_load(char *fname, Histogram *res) {
-    struct stat st;
-    if (stat(fname, &st) != 0) return 1;
+/* file format
 
+    uint64_t: n_dists
+    uint64_t[n_dists]: dist sizes
+
+    for each dist:
+        uint64_t[dist_size / 2]: sorted hashes
+        uint64_t[dist_size / 2]: counts
+
+
+*/
+
+#define ERR_STAT 1
+#define ERR_MALLOC 2
+#define ERR_FILESIZE 3
+#define ERR_OPEN 4
+#define ERR_READ 5
+
+const char *error_messages[5] = {
+    "stat failed",
+    "malloc failed",
+    "file size incorrect",
+    "open failed",
+    "read failed"
+};
+
+char Histogram_load(char *fname, Histogram **res_hists, size_t *res_n) {
+    struct stat st;
+    if (stat(fname, &st) != 0) return ERR_STAT;
+    
     FILE *inf = fopen(fname, "r");
-    if (!inf) return 1;
+    if (!inf) return ERR_OPEN;
 
     size_t fsize = st.st_size;
-    void *buffer = malloc(fsize);
-    if (buffer == 0) return 1;
-    size_t read_size = fread(buffer, fsize, 1, inf);
-    fclose(inf);
 
-    size_t n_elements = read_size / sizeof(uint64_t) / 2;
-    uint64_t *values = buffer + (read_size / 2);
+    uint64_t n_dists;
+    if (fread(&n_dists, sizeof(n_dists), 1, inf) < 1) return ERR_READ;
 
-    uint64_t sum = 0;
-    size_t idx = n_elements;
-    while(idx > 0) {
-        sum += values[idx];
-        idx--;
+    uint64_t *dist_sizes = malloc(sizeof(uint64_t) * n_dists);
+    if (!dist_sizes) return ERR_MALLOC;
+
+    if (fread(dist_sizes, sizeof(uint64_t), n_dists, inf) < n_dists) return ERR_READ;
+
+    uint64_t total_dist_size = 0;
+    for (size_t i=0; i < n_dists; i++) {
+        total_dist_size += dist_sizes[i] * sizeof(uint64_t);
     }
-    
-    res->keys = buffer;
-    res->values = values;
-    res->len = n_elements;
-    res->sum = sum;
+
+    size_t computed_size = (total_dist_size*2 + n_dists*sizeof(uint64_t) + sizeof(uint64_t));
+
+    if (computed_size != fsize) {
+        return ERR_FILESIZE;
+    }
+
+    Histogram *res = malloc(sizeof(Histogram) * n_dists);
+
+    if (!res) return ERR_MALLOC;
+
+    for (size_t i=0; i < n_dists; i++) {
+        Histogram *hist = res + (sizeof(Histogram) * i);
+        uint64_t dist_size = dist_sizes[i];
+        uint64_t *buffer = malloc(dist_size * sizeof(uint64_t) * 2);
+
+        if (!buffer) return ERR_MALLOC;
+
+        if (fread(buffer, sizeof(uint64_t), dist_size*2, inf) < dist_size*2) return ERR_READ;
+
+        uint64_t *hashes = buffer;
+        uint64_t *values = &(buffer[dist_size]);
+        uint64_t sum = 0;
+
+        for (size_t j=0; j < dist_size; j++) {
+            sum += values[j];
+        }
+
+        hist->keys = hashes;
+        hist->values = values;
+        hist->len = dist_size;
+        hist->sum = sum;
+    }
+
+    *res_hists = res;
+    *res_n = n_dists;
 
     return 0;
 
@@ -58,17 +115,18 @@ void Histogram_free(Histogram h) {
 
 ssize_t Histogram_idx(Histogram h, uint64_t k) {
     size_t len = h.len;
-    ssize_t right = len;
+    ssize_t right = len-1;
     ssize_t left = 0;
 
-    while (right > left && left >= 0 && right <= len) {
-        size_t mid = left + (right - left) / 2;
-        if (h.keys[mid] == k) {
-            return h.keys[mid];
-        } else if (mid < k) {
-            left = mid;
+    while (left <= right) {
+        size_t mid = (left + right) / 2;
+        uint64_t v = h.keys[mid];
+        if (v == k) {
+            return mid;
+        } else if (v < k) {
+            left = mid + 1;
         } else {
-            right = mid;
+            right = mid - 1;
         }
     }
 
@@ -78,6 +136,7 @@ ssize_t Histogram_idx(Histogram h, uint64_t k) {
 char Histogram_get(Histogram h, uint64_t k, int64_t *res) {
     ssize_t idx = Histogram_idx(h, k);
     if (idx < 0) {
+        *res = 0;
         return 1;
     } else {
         *res = h.values[idx];
@@ -103,13 +162,31 @@ static struct custom_operations histogram_ops = {
   custom_deserialize_default
 };
 
+value _wrap_histogram(Histogram *h) {
+    value res = alloc_custom(&histogram_ops, sizeof(Histogram), 0, 1);
+    Histogram_val(res) = *h;
+    return res;
+}
+
 value call_histogram_load(value fname) {
     char *fname_buf = String_val(fname);
-    Histogram res;
-    if (Histogram_load(fname_buf, &res) != 0) caml_failwith("failed to load file");
-    value v = alloc_custom(&histogram_ops, sizeof(Histogram), 0, 1);
-    Histogram_val(v) = res;
-    return v;
+    Histogram *hists;
+    uint64_t n_hists;
+    char status = Histogram_load(fname_buf, &hists, &n_hists);
+    if (status != 0) {
+        caml_failwith(error_messages[status - 1]);
+    }
+
+    Histogram **hist_pointers = malloc(sizeof(Histogram *) * (n_hists + 1)); // end with null pointer to make alloc_array happy
+    memset(hist_pointers, 0, sizeof(Histogram *) * (n_hists + 1));
+    for (size_t i=0; i < n_hists; i++) {
+        hist_pointers[i] = hists + (sizeof(Histogram) * i);
+    }
+
+    value res = caml_alloc_array(_wrap_histogram, hist_pointers);
+    free(hist_pointers);
+    free(hists);
+    return res;
 }
 
 value call_histogram_get(value h, value k) {
