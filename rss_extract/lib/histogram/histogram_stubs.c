@@ -62,7 +62,7 @@ char Histogram_load(char *fname, Histogram **res_hists, size_t *res_n) {
     uint64_t *dist_sizes = malloc(sizeof(uint64_t) * n_dists);
     if (!dist_sizes) return ERR_MALLOC;
 
-    if (fread(dist_sizes, sizeof(uint64_t), n_dists, inf) < n_dists) return ERR_READ;
+    if (fread(dist_sizes, sizeof(uint64_t), n_dists, inf) != n_dists) return ERR_READ;
 
     uint64_t total_dist_size = 0;
     for (size_t i=0; i < n_dists; i++) {
@@ -119,28 +119,26 @@ ssize_t Histogram_idx(Histogram h, uint64_t k) {
     ssize_t left = 0;
 
     while (left <= right) {
-        size_t mid = (left + right) / 2;
+        size_t mid = left + (right - left) / 2;
         uint64_t v = h.keys[mid];
-        if (v == k) {
-            return mid;
-        } else if (v < k) {
+        if (v < k) {
             left = mid + 1;
-        } else {
+        } else if (v > k) {
             right = mid - 1;
+        } else{
+            return mid;
         }
     }
 
     return -1;
 }
 
-char Histogram_get(Histogram h, uint64_t k, int64_t *res) {
+int64_t Histogram_get(Histogram h, uint64_t k) {
     ssize_t idx = Histogram_idx(h, k);
     if (idx < 0) {
-        *res = 0;
-        return 1;
+        return -1;
     } else {
-        *res = h.values[idx];
-        return 0;
+        return h.values[idx];
     }
 }
 
@@ -177,11 +175,11 @@ value call_histogram_load(value fname) {
         caml_failwith(error_messages[status - 1]);
     }
 
-    Histogram **hist_pointers = malloc(sizeof(Histogram *) * (n_hists + 1)); // end with null pointer to make alloc_array happy
-    memset(hist_pointers, 0, sizeof(Histogram *) * (n_hists + 1));
+    Histogram **hist_pointers = malloc(sizeof(Histogram *) * (n_hists + 1)); 
     for (size_t i=0; i < n_hists; i++) {
         hist_pointers[i] = hists + (sizeof(Histogram) * i);
     }
+    hist_pointers[n_hists] = 0;
 
     value res = caml_alloc_array(_wrap_histogram, hist_pointers);
     free(hist_pointers);
@@ -202,10 +200,7 @@ value call_histogram_get(value h, value k) {
     MurmurHash3_x64_128(k_buf, k_size, seed, hash);
     hash_k = hash[0] ^ hash[1];
 
-    int64_t v;
-    if (Histogram_get(h_val, hash_k, &v) != 0) {
-        v = 0;
-    }
+    int64_t v = Histogram_get(h_val, hash_k);
     CAMLreturn(Val_long(v));
 }
 
@@ -213,5 +208,12 @@ value call_histogram_sum(value h) {
     CAMLparam1(h);
     Histogram h_val = Histogram_val(h);
     uint64_t res = h_val.sum;
+    CAMLreturn(Val_long(res));
+}
+
+value call_histogram_length(value h) {
+    CAMLparam1(h);
+    Histogram h_val = Histogram_val(h);
+    uint64_t res = h_val.len;
     CAMLreturn(Val_long(res));
 }
