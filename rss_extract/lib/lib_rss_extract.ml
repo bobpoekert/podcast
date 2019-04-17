@@ -143,7 +143,7 @@ let _absolute_error_folder topic topic_total hist_total k v res =
   let topic_normed = topic_v /. topic_total in 
   let v_normed = (float_of_int v) /. hist_total in
   let normed_delta = abs_float (v_normed -. topic_normed) in 
-  res -. (topic_v *. normed_delta)
+  res -. (topic_v *. (1. -. normed_delta))
 
 let absolute_error hist hist_total topic =
   let topic_total = float_of_int (Histogram.sum topic) in
