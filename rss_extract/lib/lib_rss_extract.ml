@@ -18,10 +18,13 @@ let page_iter_callback thunk (page : Warc.warc_page) =
   let body = Warc.get_body rsp in
   let hrsp, body = Warc.parse_response_body body in
   let code = response_code hrsp in
+  let header = Warc.get_headers rsp in
+  let _ = print_endline (Warc.get_url header) in
   if code == 200 then
-    let header = Warc.get_headers rsp in
-    let xml = Xml.parse_string body in
-    thunk req header hrsp xml
+    try
+      let xml = Xml.parse_string body in
+      thunk req header hrsp xml
+    with | Xml.Error(_) | Dtd.Parse_error(_) | Xml.File_not_found(_) -> ()
 
 let iter_xml_pages fname thunk = 
   let inf = Warc.load_file fname in
@@ -176,12 +179,9 @@ let range n = List.init n (fun x -> x)
 let process_batch hists outfname part =
   let outf = open_out outfname in 
   let outs = Gzip.open_out_chan outf in 
-  try
-    for inf_idx = 0 to (Array.length part) do 
-      let inf = Array.get part inf_idx in 
-      process_file hists inf outs
-    done
-  with e ->
-    Gzip.close_out outs;
-    close_out outf;
-    raise e
+  for inf_idx = 0 to (Array.length part) - 1 do 
+    let inf = Array.get part inf_idx in 
+    process_file hists inf outs
+  done;
+  Gzip.close_out outs;
+  close_out outf;
