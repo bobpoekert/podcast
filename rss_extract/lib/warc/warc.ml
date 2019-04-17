@@ -62,18 +62,9 @@ let parse_response_body inp : (Response.t * string) =
     )
   )
 
-let rec _readline res ins =
-  let c = Gzip.input_char ins in
-  match c with
-  | '\n' -> res
-  | c -> Buffer.add_char res c; _readline res ins
-
-let readline ins =
-  let buf = _readline (Buffer.create 4096) ins in 
-  Bytes.to_string (Buffer.to_bytes buf)
 
 let rec _parse_headers fields ins =
-  let line = readline ins in 
+  let line = input_line ins in 
   match line with
   | "\r" -> fields
   | "WARC/1.0\r" -> _parse_headers fields ins
@@ -89,29 +80,21 @@ let parse_headers ins = _parse_headers [] ins
 let get_header headers k =
   let _, v = List.find (fun (kk, _) -> String.equal kk k) headers in v
 
-let rec _read_gz_bytes start target_len inf res =
-  let read_len = Gzip.input inf res start target_len in
-  if read_len == 0 then
-    raise End_of_file 
-  else if read_len < target_len then
-    _read_gz_bytes (start + read_len) (target_len - read_len) inf res
-
-let read_gz_bytes n_bytes inf = 
+let read_bytes n_bytes inf = 
   let res = Bytes.create n_bytes in 
-  _read_gz_bytes 0 n_bytes inf res;
+  really_input inf res 0 n_bytes;
   Bytes.to_string res
 
-let next_entry (ins : Gzip.in_channel) : warc_entry =
+let next_entry (ins : in_channel) : warc_entry =
     let header_fields = parse_headers ins in
     let length_field = get_header header_fields "Content-Length" in
     let length_int = int_of_string length_field in
-    let body = read_gz_bytes length_int ins in
-    let _ = readline ins in (* throw away blank line *)
-    let _ = readline ins in (* throw away blank line *)
+    let body = read_bytes length_int ins in
+    let _ = input_line ins in (* throw away blank line *)
+    let _ = input_line ins in (* throw away blank line *)
     (header_fields, body)
 
-
-let rec _next_page (req : warc_entry option) (inp : Gzip.in_channel) : (warc_entry * warc_entry) =
+let rec _next_page (req : warc_entry option) (inp : in_channel) : (warc_entry * warc_entry) =
   let entry = next_entry inp in
   let headers, _ = entry in
   let warc_type = get_header headers "WARC-Type" in
@@ -131,15 +114,18 @@ let rec _iter_pages inp thunk =
       thunk page;
     done
   with
-  | End_of_file -> ()
+  | End_of_file -> print_endline "eof"
   | Incomplete_request -> _iter_pages inp thunk
 
 let iter_pages inp thunk = _iter_pages inp thunk
 
 let get_url headers = get_header headers "WARC-Target-URI"
 
-let load_file fname = Gzip.open_in fname
-let close_file inf = Gzip.close_in inf
+let load_file fname =
+  (*TODO: SHELL INJECTION VULN! fix this to use create_process instead *)
+  Unix.open_process_in (Printf.sprintf "gunzip -c %s" fname)
+
+let close_file inf = close_in inf
 
 let get_req (x : warc_page) =
   let req, _ = x in req

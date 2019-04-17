@@ -14,7 +14,7 @@
 
 typedef struct Histogram {
 
-    uint64_t *keys;
+    uint32_t *keys;
     uint64_t *values;
     uint64_t len;
     uint64_t sum;
@@ -88,8 +88,24 @@ char Histogram_load(char *fname, Histogram **res_hists, size_t *res_n) {
 
         if (fread(buffer, sizeof(uint64_t), dist_size*2, inf) < dist_size*2) return ERR_READ;
 
-        uint64_t *hashes = buffer;
-        uint64_t *values = &(buffer[dist_size]);
+        uint64_t *values = malloc(sizeof(uint64_t) * dist_size);
+        if (!values) return ERR_MALLOC;
+        uint32_t *hashes = malloc(sizeof(uint32_t) * dist_size);
+        if (!hashes) return ERR_MALLOC;
+
+        for (size_t i=0; i < dist_size; i++) {
+            union hash{
+                uint64_t hash64;
+                uint32_t hash32[2];
+            } hash;
+            hash.hash64 = buffer[i];
+            hashes[i] = hash.hash32[0] ^ hash.hash32[1];
+        }
+
+        memcpy(values, &(buffer[dist_size]), dist_size * sizeof(uint64_t));
+
+        free(buffer);
+
         uint64_t sum = 0;
 
         for (size_t j=0; j < dist_size; j++) {
@@ -113,7 +129,7 @@ void Histogram_free(Histogram h) {
     free(h.keys);
 }
 
-ssize_t Histogram_idx(Histogram h, uint64_t k) {
+ssize_t Histogram_idx(Histogram h, uint32_t k) {
     size_t len = h.len;
     ssize_t right = len-1;
     ssize_t left = 0;
@@ -133,7 +149,7 @@ ssize_t Histogram_idx(Histogram h, uint64_t k) {
     return -1;
 }
 
-int64_t Histogram_get(Histogram h, uint64_t k) {
+int64_t Histogram_get(Histogram h, uint32_t k) {
     ssize_t idx = Histogram_idx(h, k);
     if (idx < 0) {
         return -1;
@@ -193,12 +209,12 @@ value call_histogram_get(value h, value k) {
 
     char *k_buf = String_val(k);
     size_t k_size = caml_string_length(k);
-    uint64_t hash[2];
+    uint32_t hash[4];
     uint64_t seed = 42;
-    uint64_t hash_k;
+    uint32_t hash_k;
 
     MurmurHash3_x64_128(k_buf, k_size, seed, hash);
-    hash_k = hash[0] ^ hash[1];
+    hash_k = (hash[0] ^ hash[1]) ^ (hash[2] ^ hash[3]);
 
     int64_t v = Histogram_get(h_val, hash_k);
     CAMLreturn(Val_long(v));
