@@ -8,12 +8,12 @@ import time
 from tornado.ioloop import IOLoop
 import random
 import threading
-from Queue import Queue
+from queue import Queue
 
 class Crawler(object):
 
     def __init__(self, queue_fname, handlers=({}, None), max_requests=100, ioloop=None):
-        print 'max:', max_requests
+        print('max:', max_requests)
         self.queue_fname = queue_fname
         self.queue_db = sqlite3.connect(queue_fname)
         self.message_handlers = handlers
@@ -95,7 +95,7 @@ class Crawler(object):
             while 1:
                 cur = self.queue_db.cursor()
                 cur.execute(
-                        'select id, type, payload, url from queue where started != 1 and id not in (%s) order by id limit 1' % \
+                        'select id, type, payload, url from queue where started != 1 and id not in (%s) order by id desc limit 1' % \
                                 ','.join(map(str, self.running_requests)))
                 row = cur.fetchone()
                 if not row:
@@ -103,7 +103,7 @@ class Crawler(object):
                 _id, _type, payload_data, url = row
                 if _id in self.running_requests:
                     continue
-                #print _type
+                print(_type)
                 #cur.execute('update queue set started = 1 where id = ?', (_id,))
                 #self.queue_db.commit()
                 return (_id, _type, json.loads(payload_data), url)
@@ -115,7 +115,7 @@ class Crawler(object):
             self.db_run('delete_job', _id)
 
     def start_job(self):
-        #print self.running_requests, self.max_requests
+        print(self.running_requests, self.max_requests)
         while self.n_reqs() < self.max_requests:
             #print 'pop', self.running_requests
             job = self.pop_job()
@@ -188,8 +188,8 @@ class Task(object):
                 self.current_future = nxt
         except StopIteration:
             return
-        except Exception, e:
-            print 'error in %s' % self.url
+        except:
+            print('error in %s' % self.url)
             traceback.print_exc()
             return
         finally:
