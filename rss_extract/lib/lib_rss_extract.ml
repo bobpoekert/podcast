@@ -16,8 +16,9 @@ let page_iter_callback thunk (page : Warc.warc_page) =
   let req = Warc.get_req page in 
   let rsp = Warc.get_rsp page in
   let body = Warc.get_body rsp in
-  let hrsp, body = Warc.parse_response_body body in 
-  if (response_code hrsp) == 200 then
+  let hrsp, body = Warc.parse_response_body body in
+  let code = response_code hrsp in
+  if code == 200 then
     let header = Warc.get_headers rsp in
     let xml = Xml.parse_string body in
     thunk req header hrsp xml
@@ -84,7 +85,7 @@ let rec _iter_tag_name tag_name thunk xml =
   match xml with
   | Xml.PCData(_) -> ()
   | Xml.Element(tag, _attrs, children) ->
-    if tag == tag_name then thunk xml;
+    if (String.compare tag_name tag) == 0 then thunk xml;
     List.iter (_iter_tag_name tag_name thunk) children
 
 let iter_tag_name xml tag_name thunk = _iter_tag_name tag_name thunk xml
@@ -97,7 +98,7 @@ let rec _first_tag_name tag_name xmls =
     match xml with
     | Xml.PCData(_) -> _first_tag_name tag_name rest
     | Xml.Element(tag, _attrs, children) ->
-      if tag == tag_name then Some(xml) else 
+      if (String.compare tag tag_name) == 0 then Some(xml) else 
       _first_tag_name tag_name (List.append rest children)
 
 let first_tag_name tag_name xml = _first_tag_name tag_name [xml]
@@ -155,9 +156,9 @@ let hist_sum hist =
 let iter_topic_vectors topics fname thunk =
   iter_word_histograms fname (fun req headers item_xml item_hist ->
     let ht = hist_sum item_hist in 
-    let errors = List.map (absolute_error item_hist (float_of_int ht)) topics in 
-    let error_sum = List.fold_left (+.) 0.0 errors in 
-    let proportions = List.map (fun e -> error_sum /. e) errors in 
+    let errors = Array.map (absolute_error item_hist (float_of_int ht)) topics in 
+    let error_sum = Array.fold_left (+.) 0.0 errors in 
+    let proportions = Array.map (fun e -> e /. error_sum) errors in 
     thunk req headers item_xml proportions
   )
 
@@ -165,7 +166,7 @@ let process_file topics fname outs =
   iter_topic_vectors topics fname (fun req _headers item_xml proportions ->
     let rss_url = Warc.get_url (Warc.get_headers req) in 
     let guid = match item_guid item_xml with | Some(v) -> v | None -> "" in 
-    let vec_string = String.concat "," (List.map string_of_float proportions) in
+    let vec_string = String.concat "," (Array.to_list (Array.map string_of_float proportions)) in
     let res_string = Printf.sprintf "%s\t%s\t%s\n" rss_url guid vec_string in 
     Gzip.output_substring outs res_string 0 (String.length res_string)
   )
@@ -177,7 +178,8 @@ let process_batch hists outfname part =
   let outs = Gzip.open_out_chan outf in 
   try
     for inf_idx = 0 to (Array.length part) do 
-      process_file hists (Array.get part inf_idx) outs
+      let inf = Array.get part inf_idx in 
+      process_file hists inf outs
     done
   with e ->
     Gzip.close_out outs;

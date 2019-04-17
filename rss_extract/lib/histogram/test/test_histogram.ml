@@ -79,7 +79,7 @@ let suite =
   "suite">::: [
     "counts">:: test_test_counts;
     "sums">:: test_test_sums;
-    "lengths">:: test_length
+    "lengths">:: test_length 
   ]
 
 let () =
