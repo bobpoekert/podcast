@@ -1,4 +1,4 @@
 (library
     (name histogram)
-    (c_flags -O0)
+    (c_flags -Ofast)
     (c_names histogram_stubs))
