@@ -15,9 +15,11 @@ B /Users/bob/.opam/4.07.0/lib/re/posix
 B /Users/bob/.opam/4.07.0/lib/seq
 B /Users/bob/.opam/4.07.0/lib/sexplib
 B /Users/bob/.opam/4.07.0/lib/sexplib0
+B /Users/bob/.opam/4.07.0/lib/sha
 B /Users/bob/.opam/4.07.0/lib/stringext
 B /Users/bob/.opam/4.07.0/lib/uri
 B /Users/bob/.opam/4.07.0/lib/xml-light
+B _build/default/.image_url_extract.eobjs
 B _build/default/.rss_extract.eobjs
 B _build/default/lib/.lib_rss_extract.objs
 B _build/default/lib/histogram/.histogram.objs
@@ -39,6 +41,7 @@ S /Users/bob/.opam/4.07.0/lib/re/posix
 S /Users/bob/.opam/4.07.0/lib/seq
 S /Users/bob/.opam/4.07.0/lib/sexplib
 S /Users/bob/.opam/4.07.0/lib/sexplib0
+S /Users/bob/.opam/4.07.0/lib/sha
 S /Users/bob/.opam/4.07.0/lib/stringext
 S /Users/bob/.opam/4.07.0/lib/uri
 S /Users/bob/.opam/4.07.0/lib/xml-light
@@ -46,4 +49,4 @@ S .
 S lib
 S lib/histogram
 S lib/warc
-FLG -w @a-4-29-40-41-42-44-45-48-58-59-60-40 -strict-sequence -strict-formats -short-paths -keep-locs
+FLG -w @a-4-29-40-41-42-44-45-48-58-59-60-40 -strict-sequence -strict-formats -short-paths -keep-locs -w @a-4-29-40-41-42-44-45-48-58-59-60-40 -strict-sequence -strict-formats -short-paths -keep-locs

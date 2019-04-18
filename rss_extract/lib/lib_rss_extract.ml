@@ -19,7 +19,6 @@ let page_iter_callback thunk (page : Warc.warc_page) =
   let hrsp, body = Warc.parse_response_body body in
   let code = response_code hrsp in
   let header = Warc.get_headers rsp in
-  let _ = print_endline (Warc.get_url header) in
   if code == 200 then
     try
       let xml = Xml.parse_string body in
@@ -35,7 +34,7 @@ let close_file inf = close_in inf
 let iter_xml_pages fname thunk = 
   let inf = load_file fname in
   Warc.iter_pages inf (page_iter_callback thunk);
-  Warc.close_file inf
+  close_in inf
 
 type text_value =
   | Text of string (* text blob, valid to tokenize *)

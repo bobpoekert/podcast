@@ -3,7 +3,6 @@ B /Users/bob/.opam/4.07.0/lib/base/caml
 B /Users/bob/.opam/4.07.0/lib/base/shadow_stdlib
 B /Users/bob/.opam/4.07.0/lib/base64
 B /Users/bob/.opam/4.07.0/lib/bytes
-B /Users/bob/.opam/4.07.0/lib/camlzip/../zip
 B /Users/bob/.opam/4.07.0/lib/cohttp
 B /Users/bob/.opam/4.07.0/lib/fieldslib
 B /Users/bob/.opam/4.07.0/lib/ocaml
@@ -22,7 +21,6 @@ S /Users/bob/.opam/4.07.0/lib/base/caml
 S /Users/bob/.opam/4.07.0/lib/base/shadow_stdlib
 S /Users/bob/.opam/4.07.0/lib/base64
 S /Users/bob/.opam/4.07.0/lib/bytes
-S /Users/bob/.opam/4.07.0/lib/camlzip/../zip
 S /Users/bob/.opam/4.07.0/lib/cohttp
 S /Users/bob/.opam/4.07.0/lib/fieldslib
 S /Users/bob/.opam/4.07.0/lib/ocaml
