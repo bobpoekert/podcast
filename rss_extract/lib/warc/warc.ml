@@ -10,6 +10,7 @@ open Cohttp
 
 module String_io = Cohttp__String_io
 module StringResponse = Response.Make(String_io.M)
+module StringRequest = Request.Make(String_io.M)
 
 let allowed_body response = (* rfc7230#section-5.7.1 *)
     match Response.status response with
@@ -62,6 +63,13 @@ let parse_response_body inp : (Response.t * string) =
     )
   )
 
+let parse_request_body inp : Request.t =
+  let inp = String_io.open_in inp in 
+  let head = StringRequest.read inp in 
+  match head with 
+  | `Eof -> raise Incomplete_request 
+  | `Invalid(v) -> raise (Invalid_request v) 
+  | `Ok(head) -> head
 
 let rec _parse_headers fields ins =
   let line = input_line ins in 
@@ -114,18 +122,12 @@ let rec _iter_pages inp thunk =
       thunk page;
     done
   with
-  | End_of_file -> print_endline "eof"
+  | End_of_file -> ()
   | Incomplete_request -> _iter_pages inp thunk
 
 let iter_pages inp thunk = _iter_pages inp thunk
 
 let get_url headers = get_header headers "WARC-Target-URI"
-
-let load_file fname =
-  (*TODO: SHELL INJECTION VULN! fix this to use create_process instead *)
-  Unix.open_process_in (Printf.sprintf "gunzip -c %s" fname)
-
-let close_file inf = close_in inf
 
 let get_req (x : warc_page) =
   let req, _ = x in req

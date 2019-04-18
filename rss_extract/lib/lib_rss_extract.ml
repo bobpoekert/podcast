@@ -19,17 +19,22 @@ let page_iter_callback thunk (page : Warc.warc_page) =
   let hrsp, body = Warc.parse_response_body body in
   let code = response_code hrsp in
   let header = Warc.get_headers rsp in
-  let _ = print_endline (Warc.get_url header) in
   if code == 200 then
     try
       let xml = Xml.parse_string body in
       thunk req header hrsp xml
     with | Xml.Error(_) | Dtd.Parse_error(_) | Xml.File_not_found(_) -> ()
 
+let load_file fname =
+  (*TODO: SHELL INJECTION VULN! fix this to use create_process instead *)
+  Unix.open_process_in (Printf.sprintf "gunzip -c %s" fname)
+
+let close_file inf = close_in inf
+
 let iter_xml_pages fname thunk = 
-  let inf = Warc.load_file fname in
+  let inf = load_file fname in
   Warc.iter_pages inf (page_iter_callback thunk);
-  Warc.close_file inf
+  close_in inf
 
 type text_value =
   | Text of string (* text blob, valid to tokenize *)
