@@ -1,12 +1,16 @@
 open OUnit2
 open Cohttp
 
+let load_file fname =
+  (*TODO: SHELL INJECTION VULN if called with untrusted input! fix this to use create_process instead *)
+  Unix.open_process_in (Printf.sprintf "gunzip -c %s" fname)
+
 let with_test_warc_file thunk =
   let cwd = Sys.getcwd () in 
   let fname = Printf.sprintf "%s/rss.warc.gz" cwd in
   let fname = Re.replace_string (Re.Posix.compile_pat "_build/default/") ~by:"" fname in 
-  let warc_file = Warc.load_file fname in 
-  thunk warc_file; Warc.close_file warc_file
+  let warc_file = load_file fname in 
+  thunk warc_file; close_in warc_file
 
 let assert_some opt =
   match opt with

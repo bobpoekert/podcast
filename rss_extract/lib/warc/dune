@@ -1,3 +1,3 @@
 (library
     (name warc)
-    (libraries camlzip re cohttp))
+    (libraries re cohttp))

@@ -26,8 +26,14 @@ let page_iter_callback thunk (page : Warc.warc_page) =
       thunk req header hrsp xml
     with | Xml.Error(_) | Dtd.Parse_error(_) | Xml.File_not_found(_) -> ()
 
+let load_file fname =
+  (*TODO: SHELL INJECTION VULN! fix this to use create_process instead *)
+  Unix.open_process_in (Printf.sprintf "gunzip -c %s" fname)
+
+let close_file inf = close_in inf
+
 let iter_xml_pages fname thunk = 
-  let inf = Warc.load_file fname in
+  let inf = load_file fname in
   Warc.iter_pages inf (page_iter_callback thunk);
   Warc.close_file inf
 
