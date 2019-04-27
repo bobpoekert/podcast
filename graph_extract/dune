@@ -1,0 +1,3 @@
+(executable
+    (name graph_extract)
+    (libraries warc yojson lambdasoup sha corecount zmq))
