@@ -11,19 +11,21 @@ let process_page agg page =
   let id = data |> member "user_id" |> to_int in 
   let items = (
     match data |> member "followers" with 
-    | `List(v) -> Some(v)
+    | `List(v) -> Some((`Followers, v))
     | _ -> (
       match data |> member "followings" with 
-      | `List(v) -> Some(v)
+      | `List(v) -> Some((`Following, v))
       | _ -> None
     )
   ) in 
   (match items with 
   | None -> ()
-  | Some(items) -> (
+  | Some(direction, items) -> (
     let other_ids = items |> List.map (fun v -> v |> member "id" |> to_int_option) |> List.filter is_some |> List.map assert_some in 
     List.iter (fun other_id -> 
-      let k = if other_id < id then (other_id, id) else (id, other_id) in 
+      let k = match direction with 
+      | `Followers -> (id, other_id)
+      | `Following -> (other_id, id) in 
       table_increment agg k;
     ) other_ids;
   ));
