@@ -51,7 +51,7 @@ let process_page agg page =
   let itunes_id, rss_data = html_data
     |> member "storePlatformData" |> member "product-dv-product" |> member "results"
     |> to_assoc |> List.hd in 
-  let rss_url = rss_data |> member "feedUrl" |> to_string in 
+  let rss_url = rss_data |> member "feedUrl" |> to_string in
   let ids_group = itunes_id :: ids_group in 
   let ids_group = List.sort_uniq String.compare ids_group in
   Hashtbl.replace id_to_url itunes_id rss_url;
@@ -71,18 +71,21 @@ let sha_hash_pairs base_dirname =
   let combiner = Fork_combine.mappercombiner_no_stream process_page in
   let reducer = Fork_combine.streamerreducer_no_stream merge_table_reducer in
   let combiner_initial = ((Hashtbl.create 1000), (Hashtbl.create 1000)) in
-  let (id_to_url:((string, string) Hashtbl.t)), pair_counts = assert_some (Fork_combine.fork_combine 
+  let id_to_url, pair_counts = assert_some (Fork_combine.fork_combine 
     ~generator:generator
     ~combiner:combiner
     ~combiner_initial_state:combiner_initial
     ~reducer:reducer
     ~reducer_initial_state:None) in
   let sha_pair_counts = Hashtbl.create (Hashtbl.length pair_counts) in 
+  let urls = table_values id_to_url in 
   Hashtbl.iter (fun (id_left, id_right) count ->
-    let url_left = Hashtbl.find id_to_url id_left in 
-    let url_right = Hashtbl.find id_to_url id_right in 
-    let sha_left = Sha1.string url_left in 
-    let sha_right = Sha1.string url_right in 
-    Hashtbl.add sha_pair_counts (sha_left, sha_right) count
+    try
+      let url_left = Hashtbl.find id_to_url id_left in 
+      let url_right = Hashtbl.find id_to_url id_right in 
+      let sha_left = Sha1.to_bin (Sha1.string url_left) in 
+      let sha_right = Sha1.to_bin (Sha1.string url_right) in 
+      Hashtbl.add sha_pair_counts (sha_left, sha_right) count
+    with Not_found -> ()
   ) pair_counts;
-  (table_values id_to_url, sha_pair_counts)
+  (urls, sha_pair_counts)

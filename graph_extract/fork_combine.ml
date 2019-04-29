@@ -26,7 +26,7 @@ let mappercombiner_no_stream combiner =
 let rec _combiner_worker combiner state push pull =
   let inp = pull () in 
   match inp with 
-  | None -> (push (`End_of_stream state)); ()
+  | None -> (push (`End_of_stream state));
   | Some(v) -> 
     let new_state, item = combiner state v in 
     (match item with | Some(v) -> (push (`Stream_item v)) | None -> ());
@@ -41,16 +41,37 @@ let streamerreducer_from_streamer_and_reducer streamer reducer =
 let streamerreducer_no_stream reducer =
   streamerreducer_from_streamer_and_reducer (fun _ -> ()) reducer
 
+let with_context f = 
+  let ctx = Zmq.Context.create () in 
+  try_finalize (fun () -> f ctx) (fun () -> Zmq.Context.terminate ctx)
+
+let with_socket ctx typ url f = 
+  let ztyp = match typ with 
+    | `Input_send -> Zmq.Socket.push 
+    | `Input_recv -> Zmq.Socket.pull
+    | `Output_send -> Zmq.Socket.push 
+    | `Output_recv -> Zmq.Socket.pull in 
+  let sock = Zmq.Socket.create ctx ztyp in
+  (match typ with 
+  | `Input_send | `Output_recv -> Zmq.Socket.bind sock url; 
+  | `Input_recv | `Output_send -> Zmq.Socket.connect sock url;
+  );
+  (match typ with 
+  | `Input_recv | `Output_recv -> Zmq.Socket.set_send_high_water_mark sock 10;
+  | `Input_send | `Output_send -> Zmq.Socket.set_receive_high_water_mark sock 10;
+  );
+  try_finalize (fun () -> f sock) (fun () -> Zmq.Socket.close sock)
+
 let combiner_worker combiner initial_state input_socket_url output_socket_url =
-  let socket_ctx = Zmq.Context.create () in 
-  let inp_socket = Zmq.Socket.create socket_ctx Zmq.Socket.pull in 
-  let outp_socket = Zmq.Socket.create socket_ctx Zmq.Socket.push in 
-  Zmq.Socket.connect inp_socket input_socket_url;
-  Zmq.Socket.connect outp_socket output_socket_url;
-  Zmq.Socket.set_send_high_water_mark outp_socket 10;
-  let pull () = decode (Zmq.Socket.recv inp_socket) in 
-  let push v = Zmq.Socket.send outp_socket (encode v) in 
-  (_combiner_worker combiner initial_state push pull); ()
+  with_context (fun socket_ctx -> 
+    with_socket socket_ctx `Input_recv input_socket_url (fun inp_socket -> 
+      with_socket socket_ctx `Output_send output_socket_url (fun outp_socket ->
+        let pull () = decode (Zmq.Socket.recv inp_socket) in 
+        let push v = Zmq.Socket.send outp_socket (encode v) in 
+        (_combiner_worker combiner initial_state push pull); ()
+      )
+    )
+  )
 
 let run_fork thunk = 
   if Unix.fork () == 0 then
@@ -64,31 +85,34 @@ let run_all_cores thunk =
   n_cores
 
 let rec _generate socket generator = 
-  match generator () with 
-  | Some(v) -> Zmq.Socket.send socket (encode v); _generate socket generator
+  let g = generator () in
+  Zmq.Socket.send socket (encode g);
+  match g with 
+  | Some(_) -> _generate socket generator 
   | None -> ()
 
 let generate generator socket_url n_workers = 
-  let socket_ctx = Zmq.Context.create () in 
-  let socket = Zmq.Socket.create socket_ctx Zmq.Socket.push in
-  Zmq.Socket.connect socket socket_url;
-  Zmq.Socket.set_send_high_water_mark socket 10;
-  _generate socket generator;
-  let none_marshal = encode None in 
-  for _ = 0 to n_workers do Zmq.Socket.send socket none_marshal; done
+  with_context (fun socket_ctx -> 
+    with_socket socket_ctx `Input_send socket_url (fun socket -> 
+      _generate socket generator;
+      let none_marshal = encode None in 
+      for _ = 0 to n_workers do Zmq.Socket.send socket none_marshal; done
+    )
+  )
 
 let rec _fork_reduce  socket reducer done_counter acc =
-  if done_counter > 0 then 
+  if done_counter > 0 then (
     let inp = decode (Zmq.Socket.recv socket) in
     let done_counter = match inp with | `Stream_item(_) -> done_counter | `End_of_stream(_) -> done_counter - 1 in 
     _fork_reduce socket reducer done_counter (reducer acc inp)
-  else acc
+  ) else acc
 
 let fork_reduce reducer initial_state socket_url n_workers =
-  let socket_ctx = Zmq.Context.create () in 
-  let socket = Zmq.Socket.create socket_ctx Zmq.Socket.pull in
-  Zmq.Socket.connect socket socket_url;
-  _fork_reduce socket reducer n_workers initial_state
+  with_context (fun socket_ctx -> 
+    with_socket socket_ctx `Output_recv socket_url (fun socket -> 
+      _fork_reduce socket reducer n_workers initial_state
+    )
+  )
 
 let fork_combine ~generator ~combiner ~combiner_initial_state ~reducer ~reducer_initial_state =
   let pid = Unix.getpid () in 
