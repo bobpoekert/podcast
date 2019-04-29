@@ -1,3 +1,5 @@
+open Utils
+
 
 type ('input, 'acc) mappercombiner_result = [`End_of_stream of 'acc | `Stream_item of 'input ]
 
@@ -6,11 +8,6 @@ let decode s =
 
 let encode v =
   Marshal.to_string v []
-
-let try_finalize f finally =
-  let res = try f () with exn -> finally (); raise exn in
-  finally ();
-  res
 
 let mappercombiner_from_mapper_and_combiner mapper combiner =
   let res: 'a -> 'v -> ('a * 'b option) = fun acc v ->
