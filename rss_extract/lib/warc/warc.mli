@@ -3,6 +3,8 @@ type header
 type warc_entry 
 type warc_page 
 
+exception Incomplete_request
+
 val next_entry : in_channel -> warc_entry
 val next_page : in_channel -> warc_page
 val iter_pages : in_channel -> (warc_page -> unit) -> unit
