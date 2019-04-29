@@ -1,0 +1,3 @@
+(library
+    (name murmur)
+    (c_names murmur_stubs))
