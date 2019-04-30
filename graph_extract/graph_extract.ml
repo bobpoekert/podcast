@@ -11,8 +11,11 @@ let write_pairs pairs outf =
   Hashtbl.iter (fun k v -> 
     let l, r = k in 
     output_binary_int outf l;
+    output_binary_int outf (l lsr 32);
     output_binary_int outf r;
+    output_binary_int outf (r lsr 32);
     output_binary_int outf v;
+    output_binary_int outf (v lsr 32);
   ) pairs; ()
 
 let () =
