@@ -18,18 +18,24 @@ let response_200 page =
 let get_hrefs nodes = 
   nodes |> to_list |> List.map (fun v -> clean_url (R.attribute "href" v))
 
+let relation_pattern = Re.Posix.compile_pat "<a href=\"([^\"]+)\" class=\"pic\">"
+
+let extract_relation_urls page =
+  page
+  |> Re.all relation_pattern
+  |> List.map (fun v -> Re.Group.get v 1)
+
 let process_page url_pairs inp = 
   match response_200 inp with 
   | None -> url_pairs
   | Some(meta, _header, body) -> (
     let req_url = Warc.get_url meta in 
-    let tree = parse body in 
-    let following_page_urls = 
-      tree $$ "#followingTab a.pic" |> get_hrefs in 
-    let follower_page_urls = 
-      tree $$ "#followerTab a.pic" |> get_hrefs in
-    List.iter (fun u -> table_increment url_pairs (req_url, u);) following_page_urls;
-    List.iter (fun u -> table_increment url_pairs (u, req_url);) follower_page_urls;
+    let rel_urls = extract_relation_urls body in 
+    let urls = req_url :: rel_urls in 
+    let urls = List.map clean_url urls in 
+    iter_pairwise (fun l r -> 
+      table_increment url_pairs (l, r)
+    ) urls;
     url_pairs
   )
 
