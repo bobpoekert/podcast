@@ -11,7 +11,6 @@ let merge_table_reducer a b =
     Some(a_urls, a_pair_counts)
   )
 
-
 let process_page agg page = 
   let id_to_url, id_pair_count = agg in
   let data = Yojson.Basic.from_string page in 
@@ -34,10 +33,13 @@ let process_page agg page =
   );
   agg
 
+let process_pages agg infname =
+  fold_lines process_page agg (xunzip infname)
 
 let hash_pairs base_dirname =
-  let generator = line_reader (xz_files_stream base_dirname "*.jsons.xz") in 
-  let combiner = Fork_combine.mappercombiner_no_stream process_page in
+  let fnames = find_glob base_dirname "*.jsons.xz" in 
+  let generator = List.to_seq fnames in 
+  let combiner = Fork_combine.mappercombiner_no_stream process_pages in
   let reducer = Fork_combine.streamerreducer_no_stream merge_table_reducer in
   let combiner_initial = ((Hashtbl.create 1000), (Hashtbl.create 1000)) in
   let id_to_url, pair_counts = assert_some (Fork_combine.fork_combine 

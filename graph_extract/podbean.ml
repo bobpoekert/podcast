@@ -2,12 +2,6 @@ open Soup
 open Cohttp
 open Utils
 
-let warc_generator instream = 
-  let rec res () = (try Some(Warc.next_page instream) with 
-    |End_of_file -> None 
-    |Warc.Incomplete_request -> res ()) in 
-  res
-
 let response_200 page = 
   let rsp = Warc.get_rsp page in 
   let body = Warc.get_body rsp in
@@ -25,18 +19,61 @@ let extract_relation_urls page =
   |> Re.all relation_pattern
   |> List.map (fun v -> Re.Group.get v 1)
 
-let process_page url_pairs inp = 
-  match response_200 inp with 
-  | None -> url_pairs
-  | Some(meta, _header, body) -> (
-    let req_url = Warc.get_url meta in 
-    let rel_urls = extract_relation_urls body in 
-    let urls = req_url :: rel_urls in 
-    let urls = List.map clean_url urls in 
-    iter_pairwise (fun l r -> 
-      table_increment url_pairs (l, r)
-    ) urls;
-    url_pairs
+let rss_pattern = Re.Posix.compile_pat "<div class=\"usersite-header\">[^<]*<h1 class=\"tit\">.*</h1>[^<]*<p class=\"subtit\"><a title=\"[^\"]*\" href=\"([^\"]+)\">"
+
+let find_default h k d = 
+  try 
+    Hashtbl.find h k 
+  with Not_found -> d
+
+let process_page rss_mapping url_pairs infname = 
+  Warc.iter_pages (gunzip infname) (fun inp ->
+    match response_200 inp with 
+    | None -> ()
+    | Some(_meta, _header, body) -> (
+      let rel_urls = extract_relation_urls body in 
+      let urls = rel_urls in 
+      (* let req_url = Warc.get_url meta in *)
+      (* let urls = req_url :: urls in *)
+      let urls = List.map clean_url urls in 
+      let rss_urls = List.map (fun k -> find_default rss_mapping k k) urls in 
+      iter_pairwise (fun l r -> 
+        table_increment url_pairs (l, r)
+      ) rss_urls;
+    )
+  );
+  url_pairs
+
+let process_channel_page url_mapping infname = 
+  Warc.iter_pages (gunzip infname) (fun page -> 
+    match response_200 page with 
+    | None -> () 
+    | Some(meta, _heaer, body) -> (
+      let req_url = Warc.get_url meta in 
+      let rss_url = Re.Group.get (Re.exec rss_pattern body) 1 in 
+      Hashtbl.replace url_mapping req_url rss_url;
+    )
+  );
+  url_mapping
+
+let merge_table_reducer_str a b =
+  match a with 
+  | None -> Some(b)
+  | Some(a_pairs) -> (
+    let _ = table_into_table (fun a _b -> a) a_pairs b in a
+  )
+
+let get_rss_url_mapping base_dirname = 
+  let generator = List.to_seq (find_glob base_dirname "*.warc.gz") in 
+  let combiner = Fork_combine.mappercombiner_no_stream process_channel_page in 
+  let reducer = Fork_combine.streamerreducer_no_stream merge_table_reducer_str in 
+  let combiner_initial = Hashtbl.create 100000 in 
+  assert_some (Fork_combine.fork_combine 
+    ~generator: generator
+    ~combiner: combiner
+    ~reducer: reducer 
+    ~combiner_initial_state: combiner_initial
+    ~reducer_initial_state: None
   )
 
 let merge_table_reducer a b = 
@@ -46,11 +83,11 @@ let merge_table_reducer a b =
     let _ = table_into_table (+) a_pairs b in a
   )
 
-let hash_pairs base_dirname = 
-  let generator = warc_generator (gzip_files_stream base_dirname "*.warc.gz") in 
-  let combiner = Fork_combine.mappercombiner_no_stream process_page in 
+let hash_pairs rss_mapping base_dirname = 
+  let generator = List.to_seq (find_glob base_dirname "*.warc.gz") in 
+  let combiner = Fork_combine.mappercombiner_no_stream (process_page rss_mapping) in 
   let reducer = Fork_combine.streamerreducer_no_stream merge_table_reducer in 
-  let combiner_initial = Hashtbl.create 1000 in 
+  let combiner_initial = Hashtbl.create 100000 in 
   let pair_counts = assert_some (Fork_combine.fork_combine 
     ~generator: generator
     ~combiner: combiner

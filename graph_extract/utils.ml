@@ -1,12 +1,40 @@
 
+let rec _read_lines res inf = 
+  try _read_lines ((input_line inf) :: res) inf with End_of_file -> res
+
+let read_lines inf = _read_lines [] inf
+
+let rec line_seq instream = 
+  try
+    Seq.Cons(input_line instream, (fun () -> line_seq instream))
+  with End_of_file -> Seq.Nil
+
+let rec iter_lines f ins =
+  try (
+    f (input_line ins);
+    iter_lines f ins
+  ) with End_of_file -> ()
+
+let rec fold_lines f acc ins = 
+  try (
+    let res = f acc (input_line ins) in 
+    fold_lines f res ins
+  ) with End_of_file -> acc
+
+let find_glob basepath glob =
+  read_lines (Unix.open_process_in (Printf.sprintf "find %s -name %s" basepath glob))
+
 let gzip_files_stream basepath glob =
   Unix.open_process_in (Printf.sprintf "find %s -name %s | xargs -n 1 gunzip -c" basepath glob)
 
 let xz_files_stream basepath glob =
   Unix.open_process_in (Printf.sprintf "find %s -name %s | xargs -n 1 xzcat" basepath glob)
 
-let line_reader instream =
-  (fun () -> try Some(input_line instream) with End_of_file -> None)
+let gunzip fname = 
+  Unix.open_process_in (Printf.sprintf "gunzip -c %s" fname)
+
+let xunzip fname =
+  Unix.open_process_in (Printf.sprintf "xzcat %s" fname)
 
 let table_increment t k =
   try

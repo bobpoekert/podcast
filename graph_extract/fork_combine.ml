@@ -23,7 +23,7 @@ let mappercombiner_no_stream combiner =
 let rec _combiner_worker combiner state push pull =
   let inp = pull () in 
   match inp with 
-  | None -> (push (`End_of_stream state));
+  | None -> (push (`End_of_stream state)); print_endline "done";
   | Some(v) -> 
     try
         (let new_state, item = combiner state v in 
@@ -79,23 +79,25 @@ let run_fork thunk =
     try_finalize thunk (fun () -> ignore (exit 0))
 
 let run_all_cores thunk = 
-  let n_cores = Nativeint.to_int (Corecount.count ()) in 
+  (* let n_cores = Nativeint.to_int (Corecount.count ()) in *)
+  let n_cores = 2 in 
   for _ = 0 to n_cores do 
     run_fork thunk;
   done;
   n_cores
 
-let rec _generate socket generator = 
-  let g = generator () in
-  Zmq.Socket.send socket (encode g);
-  match g with 
-  | Some(_) -> _generate socket generator 
-  | None -> ()
+let rec _generate send generator =
+  match generator with 
+  | Seq.Nil -> send None;
+  | Seq.Cons(v, rst) -> (
+    send (Some v);
+    _generate send (rst ());
+  )
 
 let generate generator socket_url n_workers = 
   with_context (fun socket_ctx -> 
     with_socket socket_ctx `Input_send socket_url (fun socket -> 
-      _generate socket generator;
+      _generate (fun v -> Zmq.Socket.send socket (encode v)) (generator ());
       let none_marshal = encode None in 
       for _ = 0 to n_workers do Zmq.Socket.send socket none_marshal; done
     )

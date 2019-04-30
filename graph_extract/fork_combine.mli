@@ -1,7 +1,7 @@
 type ('input, 'acc) mappercombiner_result
 
 val fork_combine :
-  generator:(unit -> 'input option) ->
+  generator:'input Seq.t ->
   combiner:('comb_acc -> 'input -> ('comb_acc * 'output_item option)) -> 
   combiner_initial_state:'comb_acc ->
   reducer:('reduce_acc -> ('output_item, 'comb_acc) mappercombiner_result -> 'reduce_acc) -> 
