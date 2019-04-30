@@ -79,8 +79,7 @@ let run_fork thunk =
     try_finalize thunk (fun () -> ignore (exit 0))
 
 let run_all_cores thunk = 
-  (* let n_cores = Nativeint.to_int (Corecount.count ()) in *)
-  let n_cores = 2 in 
+  let n_cores = Nativeint.to_int (Corecount.count ()) in
   for _ = 0 to n_cores do 
     run_fork thunk;
   done;
