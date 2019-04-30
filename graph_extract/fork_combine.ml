@@ -25,9 +25,13 @@ let rec _combiner_worker combiner state push pull =
   match inp with 
   | None -> (push (`End_of_stream state));
   | Some(v) -> 
-    let new_state, item = combiner state v in 
-    (match item with | Some(v) -> (push (`Stream_item v)) | None -> ());
-    _combiner_worker combiner new_state push pull
+    try
+        (let new_state, item = combiner state v in 
+        (match item with | Some(v) -> (push (`Stream_item v)) | None -> ());
+        _combiner_worker combiner new_state push pull)
+    with exn -> (
+        print_endline (Printexc.to_string exn);
+        _combiner_worker combiner state push pull)
 
 let streamerreducer_from_streamer_and_reducer streamer reducer =
   fun acc v ->
@@ -53,10 +57,10 @@ let with_socket ctx typ url f =
   | `Input_send | `Output_recv -> Zmq.Socket.bind sock url; 
   | `Input_recv | `Output_send -> Zmq.Socket.connect sock url;
   );
-  (match typ with 
+  (*(match typ with 
   | `Input_recv | `Output_recv -> Zmq.Socket.set_send_high_water_mark sock 10;
-  | `Input_send | `Output_send -> Zmq.Socket.set_receive_high_water_mark sock 10;
-  );
+  | `Input_send | `Output_send -> ()
+  );*)
   try_finalize (fun () -> f sock) (fun () -> Zmq.Socket.close sock)
 
 let combiner_worker combiner initial_state input_socket_url output_socket_url =
@@ -99,6 +103,7 @@ let generate generator socket_url n_workers =
 
 let rec _fork_reduce  socket reducer done_counter acc =
   if done_counter > 0 then (
+    Printf.printf "%d\n" done_counter;
     let inp = decode (Zmq.Socket.recv socket) in
     let done_counter = match inp with | `Stream_item(_) -> done_counter | `End_of_stream(_) -> done_counter - 1 in 
     _fork_reduce socket reducer done_counter (reducer acc inp)

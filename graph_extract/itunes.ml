@@ -16,20 +16,22 @@ let process_page agg page =
   let id_to_url, id_pair_count = agg in
   let data = Yojson.Basic.from_string page in 
   let open Yojson.Basic.Util in 
-  let html_data = data |> member "html_data" in 
-  let ids_group = html_data 
-    |> member "pageData" |> member "podcastPageData" |> member "listenersAlsoBought"
-    |> to_list |> filter_string in 
-  let itunes_id, rss_data = html_data
-    |> member "storePlatformData" |> member "product-dv-product" |> member "results"
-    |> to_assoc |> List.hd in 
-  let rss_url = rss_data |> member "feedUrl" |> to_string |> clean_url in
-  let ids_group = itunes_id :: ids_group in 
-  let ids_group = List.sort_uniq String.compare ids_group in
-  Hashtbl.replace id_to_url itunes_id rss_url;
-  iter_pairwise (fun a b -> 
-      table_increment id_pair_count (a, b)
-  ) ids_group;
+  let html_data = data |> member "html_data" in
+  if html_data != `Null then (
+      let ids_group = html_data 
+        |> member "pageData" |> member "podcastPageData" |> member "listenersAlsoBought"
+        |> to_list |> filter_string in 
+      let itunes_id, rss_data = html_data
+        |> member "storePlatformData" |> member "product-dv-product" |> member "results"
+        |> to_assoc |> List.hd in 
+      let rss_url = rss_data |> member "feedUrl" |> to_string |> clean_url in
+      let ids_group = itunes_id :: ids_group in 
+      let ids_group = List.sort_uniq String.compare ids_group in
+      Hashtbl.replace id_to_url itunes_id rss_url;
+      iter_pairwise (fun a b -> 
+          table_increment id_pair_count (a, b)
+      ) ids_group;
+  );
   agg
 
 
