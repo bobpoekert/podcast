@@ -19,12 +19,23 @@ let extract_relation_urls page =
   |> Re.all relation_pattern
   |> List.map (fun v -> Re.Group.get v 1)
 
-let rss_pattern = Re.Posix.compile_pat "<div class=\"usersite-header\">[^<]*<h1 class=\"tit\">.*</h1>[^<]*<p class=\"subtit\"><a title=\"[^\"]*\" href=\"([^\"]+)\">"
+let rss_pattern = Re.Posix.compile_pat "<div class=\"usersite-header\">[^<]*<h1 class=\"tit\">[^<]*</h1>[^<]*<p class=\"subtit\"><a title=\"[^\"]*\" href=\"([^\"]+)\">"
 
 let find_default h k d = 
   try 
     Hashtbl.find h k 
   with Not_found -> d
+
+let find_option h k = 
+  try (Some (Hashtbl.find h k)) with Not_found -> None
+
+let rec _remove_none res l =
+  match l with 
+  | [] -> [] 
+  | None :: t -> _remove_none res t 
+  | Some(v) :: t -> _remove_none (v :: res) t
+
+let remove_none l = _remove_none [] l
 
 let process_page rss_mapping url_pairs infname = 
   Warc.iter_pages (gunzip infname) (fun inp ->
@@ -36,7 +47,7 @@ let process_page rss_mapping url_pairs infname =
       (* let req_url = Warc.get_url meta in *)
       (* let urls = req_url :: urls in *)
       let urls = List.map clean_url urls in 
-      let rss_urls = List.map (fun k -> find_default rss_mapping k k) urls in 
+      let rss_urls = List.map (find_option rss_mapping) urls |> remove_none in 
       iter_pairwise (fun l r -> 
         table_increment url_pairs (l, r)
       ) rss_urls;
