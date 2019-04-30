@@ -103,7 +103,7 @@ let generate generator socket_url n_workers =
   )
 
 let rec _fork_reduce  socket reducer done_counter acc =
-  if done_counter > 0 then (
+  if done_counter >= 0 then (
     Printf.printf "%d\n" done_counter;
     let inp = decode (Zmq.Socket.recv socket) in
     let done_counter = match inp with | `Stream_item(_) -> done_counter | `End_of_stream(_) -> done_counter - 1 in 

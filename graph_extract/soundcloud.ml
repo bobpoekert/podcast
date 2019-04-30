@@ -38,8 +38,8 @@ let rss_url soundcloud_id =
   clean_url (Printf.sprintf "http://feeds.soundcloud.com/users/soundcloud:users:%d/sounds.rss" soundcloud_id)
 
 let hash_pairs base_dirname = 
-  let generator = List.to_seq (find_glob base_dirname "*.jsons.xz") in 
-  let combiner = Fork_combine.mappercombiner_no_stream process_pages in 
+  let generator = line_seq (xz_files_stream base_dirname "*.jsons.xz") in 
+  let combiner = Fork_combine.mappercombiner_no_stream process_page in 
   let reducer = Fork_combine.streamerreducer_no_stream (table_into_table (+)) in
   let combiner_initial = Hashtbl.create 1000 in 
   let pair_counts = Fork_combine.fork_combine

@@ -5,9 +5,11 @@ let rec _read_lines res inf =
 let read_lines inf = _read_lines [] inf
 
 let rec line_seq instream = 
-  try
-    Seq.Cons(input_line instream, (fun () -> line_seq instream))
-  with End_of_file -> Seq.Nil
+  (fun () -> 
+    try
+      Seq.Cons(input_line instream, line_seq instream)
+    with End_of_file -> Seq.Nil
+  )
 
 let rec iter_lines f ins =
   try (
