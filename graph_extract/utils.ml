@@ -4,6 +4,13 @@ let rec _read_lines res inf =
 
 let read_lines inf = _read_lines [] inf
 
+let reducer_catchall f = 
+  (fun a b -> try (f a b) with _ -> a)
+
+let reducer_catchall_r f = 
+  (fun a b -> try (f a b) with _ -> b)
+
+
 let rec _remove_none res l =
   match l with 
   | [] -> [] 
@@ -11,7 +18,6 @@ let rec _remove_none res l =
   | Some(v) :: t -> _remove_none (v :: res) t
 
 let remove_none l = _remove_none [] l
-
 
 let rec line_seq instream = 
   (fun () -> 

@@ -67,7 +67,7 @@ let merge_table_reducer_str a b =
 let get_rss_url_mapping base_dirname = 
   let fnames = find_glob base_dirname "*.warc.gz" in 
   let combiner_initial = Hashtbl.create 100000 in 
-  Parmap.parfold process_channel_page (Parmap.L fnames) combiner_initial merge_table_reducer_str
+  Parmap.parfold (reducer_catchall_r process_channel_page) (Parmap.L fnames) combiner_initial merge_table_reducer_str
 
 let merge_table_reducer a b = 
   let _ = table_into_table (+) a b in a
@@ -75,7 +75,7 @@ let merge_table_reducer a b =
 let hash_pairs rss_mapping base_dirname = 
   let fnames = find_glob base_dirname "*.warc.gz" in 
   let combiner_initial = Hashtbl.create 100000 in 
-  let pair_counts = Parmap.parfold (process_page rss_mapping) (Parmap.L fnames) combiner_initial merge_table_reducer in 
+  let pair_counts = Parmap.parfold (reducer_catchall_r (process_page rss_mapping)) (Parmap.L fnames) combiner_initial merge_table_reducer in 
   let urls = Hashtbl.create (Hashtbl.length pair_counts) in 
   let hash_pair_counts = Hashtbl.create (Hashtbl.length pair_counts) in 
   Hashtbl.iter (fun (l, r) v -> 

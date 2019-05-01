@@ -31,7 +31,7 @@ let process_page agg page =
   agg
 
 let process_pages infname agg =
-  fold_lines process_page agg (xunzip infname)
+  fold_lines (reducer_catchall process_page) agg (xunzip infname)
 
 let hash_pairs base_dirname =
   let fnames = find_glob base_dirname "*.jsons.xz" in 

@@ -29,8 +29,8 @@ let process_page agg page =
   ));
   agg
 
-let process_pages infname agg = 
-  fold_lines process_page agg (xunzip infname)
+let process_pages infname agg =
+  fold_lines (reducer_catchall process_page) agg (xunzip infname)
 
 let rss_url soundcloud_id = 
   clean_url (Printf.sprintf "http://feeds.soundcloud.com/users/soundcloud:users:%d/sounds.rss" soundcloud_id)
