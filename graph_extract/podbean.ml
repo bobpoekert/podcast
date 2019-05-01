@@ -29,14 +29,6 @@ let find_default h k d =
 let find_option h k = 
   try (Some (Hashtbl.find h k)) with Not_found -> None
 
-let rec _remove_none res l =
-  match l with 
-  | [] -> [] 
-  | None :: t -> _remove_none res t 
-  | Some(v) :: t -> _remove_none (v :: res) t
-
-let remove_none l = _remove_none [] l
-
 let process_page rss_mapping url_pairs infname = 
   Warc.iter_pages (gunzip infname) (fun inp ->
     match response_200 inp with 

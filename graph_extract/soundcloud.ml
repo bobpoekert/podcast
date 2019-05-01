@@ -21,7 +21,7 @@ let process_page agg page =
   (match items with 
   | None -> ()
   | Some(direction, items) -> (
-    let other_ids = items |> List.map (fun v -> v |> member "id" |> to_int_option) |> List.filter is_some |> List.map assert_some in 
+    let other_ids = items |> List.map (fun v -> v |> member "id" |> to_int_option) |> remove_none in 
     List.iter (fun other_id -> 
       let k = match direction with 
       | `Followers -> (id, other_id)
@@ -41,7 +41,7 @@ let hash_pairs base_dirname =
   let generator = line_seq (xz_files_stream base_dirname "*.jsons.xz") in 
   let combiner = Fork_combine.mappercombiner_no_stream process_page in 
   let reducer = Fork_combine.streamerreducer_no_stream (table_into_table (+)) in
-  let combiner_initial = Hashtbl.create 1000 in 
+  let combiner_initial = Hashtbl.create 100000 in 
   let pair_counts = Fork_combine.fork_combine
     ~generator: generator
     ~combiner: combiner

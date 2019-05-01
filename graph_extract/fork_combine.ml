@@ -23,7 +23,7 @@ let mappercombiner_no_stream combiner =
 let rec _combiner_worker combiner state push pull =
   let inp = pull () in 
   match inp with 
-  | None -> (push (`End_of_stream state)); print_endline "done";
+  | None -> (push (`End_of_stream state));
   | Some(v) -> 
     try
         (let new_state, item = combiner state v in 
