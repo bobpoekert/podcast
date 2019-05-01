@@ -2,14 +2,11 @@ open Utils
 
 
 let merge_table_reducer a b =
-  match a with
-  | None -> Some(b) 
-  | Some(a_urls, a_pair_counts) -> (
-    let b_urls, b_pair_counts = b in 
-    let _ = table_into_table (fun a _ -> a) a_urls b_urls in 
-    let _ = table_into_table (+) a_pair_counts b_pair_counts in 
-    Some(a_urls, a_pair_counts)
-  )
+  let a_urls, a_pair_counts = a in
+  let b_urls, b_pair_counts = b in 
+  let _ = table_into_table (fun a _ -> a) a_urls b_urls in 
+  let _ = table_into_table (+) a_pair_counts b_pair_counts in 
+  (a_urls, a_pair_counts)
 
 let process_page agg page = 
   let id_to_url, id_pair_count = agg in
@@ -33,20 +30,13 @@ let process_page agg page =
   );
   agg
 
-let process_pages agg infname =
+let process_pages infname agg =
   fold_lines process_page agg (xunzip infname)
 
 let hash_pairs base_dirname =
-  let generator = line_seq (xz_files_stream base_dirname "*.jsons.xz") in 
-  let combiner = Fork_combine.mappercombiner_no_stream process_page in
-  let reducer = Fork_combine.streamerreducer_no_stream merge_table_reducer in
+  let fnames = find_glob base_dirname "*.jsons.xz" in 
   let combiner_initial = ((Hashtbl.create 1000), (Hashtbl.create 1000)) in
-  let id_to_url, pair_counts = assert_some (Fork_combine.fork_combine 
-    ~generator:generator
-    ~combiner:combiner
-    ~combiner_initial_state:combiner_initial
-    ~reducer:reducer
-    ~reducer_initial_state:None) in
+  let id_to_url, pair_counts = Parmap.parfold process_pages (Parmap.L fnames) combiner_initial merge_table_reducer in 
   let hash_pair_counts = Hashtbl.create (Hashtbl.length pair_counts) in 
   let urls = table_values id_to_url in 
   Hashtbl.iter (fun (id_left, id_right) count ->

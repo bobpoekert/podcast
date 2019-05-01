@@ -29,7 +29,7 @@ let find_default h k d =
 let find_option h k = 
   try (Some (Hashtbl.find h k)) with Not_found -> None
 
-let process_page rss_mapping url_pairs infname = 
+let process_page rss_mapping infname url_pairs = 
   Warc.iter_pages (gunzip infname) (fun inp ->
     match response_200 inp with 
     | None -> ()
@@ -47,57 +47,35 @@ let process_page rss_mapping url_pairs infname =
   );
   url_pairs
 
-let process_channel_page url_mapping infname = 
+let process_channel_page infname url_mapping = 
   Warc.iter_pages (gunzip infname) (fun page -> 
     match response_200 page with 
     | None -> () 
     | Some(meta, _heaer, body) -> (
-      let req_url = Warc.get_url meta in 
-      let rss_url = Re.Group.get (Re.exec rss_pattern body) 1 in 
-      Hashtbl.replace url_mapping req_url rss_url;
+      try (
+        let req_url = Warc.get_url meta in 
+        let rss_url = Re.Group.get (Re.exec rss_pattern body) 1 in 
+        Hashtbl.replace url_mapping req_url rss_url;
+      ) with Not_found -> ()
     )
   );
   url_mapping
 
 let merge_table_reducer_str a b =
-  match a with 
-  | None -> Some(b)
-  | Some(a_pairs) -> (
-    let _ = table_into_table (fun a _b -> a) a_pairs b in a
-  )
+  let _ = table_into_table (fun a _b -> a) a b in a
 
 let get_rss_url_mapping base_dirname = 
-  let generator = List.to_seq (find_glob base_dirname "*.warc.gz") in 
-  let combiner = Fork_combine.mappercombiner_no_stream process_channel_page in 
-  let reducer = Fork_combine.streamerreducer_no_stream merge_table_reducer_str in 
+  let fnames = find_glob base_dirname "*.warc.gz" in 
   let combiner_initial = Hashtbl.create 100000 in 
-  assert_some (Fork_combine.fork_combine 
-    ~generator: generator
-    ~combiner: combiner
-    ~reducer: reducer 
-    ~combiner_initial_state: combiner_initial
-    ~reducer_initial_state: None
-  )
+  Parmap.parfold process_channel_page (Parmap.L fnames) combiner_initial merge_table_reducer_str
 
 let merge_table_reducer a b = 
-  match a with 
-  | None -> Some(b)
-  | Some(a_pairs) -> (
-    let _ = table_into_table (+) a_pairs b in a
-  )
+  let _ = table_into_table (+) a b in a
 
 let hash_pairs rss_mapping base_dirname = 
-  let generator = List.to_seq (find_glob base_dirname "*.warc.gz") in 
-  let combiner = Fork_combine.mappercombiner_no_stream (process_page rss_mapping) in 
-  let reducer = Fork_combine.streamerreducer_no_stream merge_table_reducer in 
+  let fnames = find_glob base_dirname "*.warc.gz" in 
   let combiner_initial = Hashtbl.create 100000 in 
-  let pair_counts = assert_some (Fork_combine.fork_combine 
-    ~generator: generator
-    ~combiner: combiner
-    ~reducer: reducer
-    ~combiner_initial_state: combiner_initial 
-    ~reducer_initial_state: None
-  ) in
+  let pair_counts = Parmap.parfold (process_page rss_mapping) (Parmap.L fnames) combiner_initial merge_table_reducer in 
   let urls = Hashtbl.create (Hashtbl.length pair_counts) in 
   let hash_pair_counts = Hashtbl.create (Hashtbl.length pair_counts) in 
   Hashtbl.iter (fun (l, r) v -> 

@@ -1,6 +1,6 @@
 (executable
     (name graph_extract)
-    (libraries warc yojson lambdasoup murmur corecount zmq re))
+    (libraries warc yojson lambdasoup murmur parmap re))
 
 (env
  (dev
