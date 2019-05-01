@@ -22,12 +22,10 @@ let process_page agg page =
   | None -> ()
   | Some(direction, items) -> (
     let other_ids = items |> List.map (fun v -> v |> member "id" |> to_int_option) |> remove_none in 
-    List.iter (fun other_id -> 
-      let k = match direction with 
-      | `Followers -> (id, other_id)
-      | `Following -> (other_id, id) in 
-      table_increment agg k;
-    ) other_ids;
+    let ids = id :: other_ids in 
+    iter_pairwise (fun l r -> 
+      table_increment agg (l, r)
+    ) ids;
   ));
   agg
 
