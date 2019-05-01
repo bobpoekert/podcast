@@ -19,7 +19,7 @@ let extract_relation_urls page =
   |> Re.all relation_pattern
   |> List.map (fun v -> Re.Group.get v 1)
 
-let rss_pattern = Re.Posix.compile_pat "<div class=\"usersite-header\">[^<]*<h1 class=\"tit\">[^<]*</h1>[^<]*<p class=\"subtit\"><a title=\"[^\"]*\" href=\"([^\"]+)\">"
+let rss_pattern = Re.Posix.compile_pat "<p class=\"subtit\"><a title=\"[^\"]*\" href=\"([^\"]+)\">"
 
 let find_default h k d = 
   try 
