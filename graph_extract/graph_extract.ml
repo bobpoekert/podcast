@@ -34,6 +34,7 @@ let () =
       let _ = table_into_table (+) pairs soundcloud_pairs in 
       write_urls urls outp_urls_fd;
       let rss_mapping = Podbean.get_rss_url_mapping podbean_channel_inp_glob in 
+      print_endline (Printf.sprintf "%d" (Hashtbl.length rss_mapping));
       let urls, podbean_pairs = Podbean.hash_pairs rss_mapping podbean_inp_glob in 
       let _ = print_endline "podbean" in 
       let _ = table_into_table (+) pairs podbean_pairs in 

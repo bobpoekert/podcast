@@ -29,6 +29,13 @@ let find_default h k d =
 let find_option h k = 
   try (Some (Hashtbl.find h k)) with Not_found -> None
 
+let rec _get_keys h ks res = 
+  match ks with 
+  | [] -> res 
+  | k :: t -> _get_keys h t (try ((Hashtbl.find h k) :: res) with Not_found -> res) 
+
+let get_keys h ks = _get_keys h ks []
+
 let process_page rss_mapping infname url_pairs = 
   Warc.iter_pages (gunzip infname) (fun inp ->
     match response_200 inp with 
@@ -39,7 +46,7 @@ let process_page rss_mapping infname url_pairs =
       (* let req_url = Warc.get_url meta in *)
       (* let urls = req_url :: urls in *)
       let urls = List.map clean_url urls in 
-      let rss_urls = List.map (find_option rss_mapping) urls |> remove_none in 
+      let rss_urls = get_keys rss_mapping urls in
       iter_pairwise (fun l r -> 
         table_increment url_pairs (l, r)
       ) rss_urls;
@@ -55,7 +62,7 @@ let process_channel_page infname url_mapping =
       try (
         let req_url = Warc.get_url meta in 
         let rss_url = Re.Group.get (Re.exec rss_pattern body) 1 in 
-        Hashtbl.replace url_mapping req_url rss_url;
+        Hashtbl.replace url_mapping (clean_url req_url) (clean_url rss_url);
       ) with Not_found -> ()
     )
   );
