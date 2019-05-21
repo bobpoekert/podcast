@@ -1,0 +1,4 @@
+
+(library
+    (name art)
+    (c_names art_stubs art))
