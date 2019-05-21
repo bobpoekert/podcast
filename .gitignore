@@ -4,3 +4,4 @@
 *.jsons.*
 *.sqlite
 .ipynb_checkpoints/
+.merlin/
