@@ -1,0 +1,17 @@
+(executable
+    (name graph_extract)
+    (modules graph_extract utils soundcloud itunes podbean)
+    (libraries warc yojson lambdasoup murmur parmap re))
+
+(executable
+    (name rss_extract)
+    (modules rss_extract)
+    (libraries warc xml-light re murmur parmap art corecount cohttp))
+
+(env
+ (dev
+   (flags (:standard -warn-error +a-42))
+   (ocamlopt_flags (:standard -w +42)))
+  (release
+    (flags (:standard -warn-error +a-42))
+    (ocamlopt_flags (:standard -O3))))

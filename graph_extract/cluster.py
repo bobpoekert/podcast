@@ -78,5 +78,6 @@ clusterer.cluster_centers_.tofile('cluster_centers.npy')
 labels = clusterer.labels_
 
 hashes_from_id = inp[ids_left, 0]
+hash_sorted_idxes = np.argsort(hashes_from_id)
 
-np.concatenate([hashes_from_id, labels]).astype(np.dtype('>i4')).tofile('cluster_ids.npy')
+np.concatenate([hashes_from_id[hash_sorted_idxes], labels[hash_sorted_idxes]]).astype(np.dtype('>i4')).tofile('cluster_ids.npy')

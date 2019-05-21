@@ -1,3 +1,0 @@
-(test
-    (name test_warc)
-    (libraries warc oUnit re sha base32))
