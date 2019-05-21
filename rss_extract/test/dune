@@ -1,3 +1,0 @@
-(test
-    (name test_rss_extract)
-    (libraries lib_rss_extract oUnit))

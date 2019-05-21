@@ -1,9 +1,0 @@
-(executable
-    (name rss_extract)
-    (modules rss_extract)
-    (libraries lib_rss_extract corecount))
-
-(executable
-    (name image_url_extract)
-    (modules image_url_extract)
-    (libraries lib_rss_extract sha warc))

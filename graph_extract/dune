@@ -1,9 +1,0 @@
-(executable
-    (name graph_extract)
-    (libraries warc yojson lambdasoup murmur parmap re))
-
-(env
- (dev
-   (ocamlopt_flags (:standard -w +42)))
-  (release
-    (ocamlopt_flags (:standard -O3))))
