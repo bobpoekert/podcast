@@ -25,15 +25,15 @@ let rec _binary_search arr k l r =
     else if v > k then 
       _binary_search arr k l (m - 1)
     else m 
-  else raise Not_found
+  else 0
 
 let binary_search arr k = _binary_search arr k 0 ((Array1.dim arr) - 1)
 
 let url_cluster_id (hashes, clusters) url = 
-  let k = Int32.of_int (Murmur.murmur_hash url) in 
+  let k = Murmur.murmur_hash url in 
+  let k = Int32.of_int (k lxor (k lsr 32)) in 
   let idx = binary_search hashes k in 
-  Array1.get clusters idx
-
+  Int32.to_int (Array1.get clusters idx)
 
 let body_string inp =
   let _rsp, body = Warc.parse_response_body inp in 
@@ -54,10 +54,10 @@ let page_iter_callback thunk (page : Warc.warc_page) =
   let code = response_code hrsp in
   let header = Warc.get_headers rsp in
   if code == 200 then
-    try
-      let xml = Xml.parse_string body in
-      thunk req header hrsp xml
-    with _ -> ()
+      try (
+          let xml = Xml.parse_string body in
+          thunk req header hrsp xml
+      ) with _ -> ()
 
 let load_file fname =
   (*TODO: SHELL INJECTION VULN! fix this to use create_process instead *)
@@ -118,7 +118,6 @@ let rec _channel_meta_text res xml =
       (List.append (xml_text xml) res)
     | "itunes:category" | "googleplay:category" ->
       List.fold_left _channel_meta_text (Tag(Xml.attrib xml "text") :: res) children
-    | "item" -> res (* skip entries, we only want channel meta *)
     | _ -> List.fold_left _channel_meta_text res children
 
 let channel_meta_text xml = _channel_meta_text [] xml
@@ -146,9 +145,7 @@ let rec _first_tag_name tag_name xmls =
 let first_tag_name tag_name xml = _first_tag_name tag_name [xml]
 
 let hist_update h k =
-  let prev =
-    try Hashtbl.find h k
-    with Not_found -> 0 in
+  let prev = Hashtbl.find h k in
   Hashtbl.replace h k (prev + 1)
 
 let into_histogram h items =
@@ -185,9 +182,11 @@ let partition n_parts inp =
 
 let spawn_worker combiner part pipe_out = 
   if Unix.fork () == 0 then (
-    let chan_out = Unix.out_channel_of_descr pipe_out in 
     let res = combiner part in 
+    let _ = print_endline "---" in 
+    let chan_out = Unix.out_channel_of_descr pipe_out in 
     Marshal.to_channel chan_out res [];
+    flush_all ();
     exit 0;
   )
 
@@ -216,7 +215,8 @@ let rec consume_pipes pipes reducer res =
   match pipes with 
   | [] -> res 
   | _ -> (
-    let read, _wirte, _ex = Unix.select pipes [] [] (-1.) in
+    let read, _wirte, _ex = Unix.select pipes [] [] (-1.0) in
+    let _ = print_endline ".." in 
     let res = reduce_fds read reducer res in 
     List.iter Unix.close read;
     consume_pipes (remove pipes read) reducer res
@@ -225,30 +225,27 @@ let rec consume_pipes pipes reducer res =
 let parmap inp combiner reducer reducer_init = 
   let ncores = (Corecount.count () |> Nativeint.to_int) in 
   let parts = partition ncores inp in 
-  let pipes = maprange (fun _n -> Unix.pipe ()) ncores in
-  let _ = Array.iter2 (
-    fun part (pin, _pout) -> spawn_worker combiner part pin
-    ) parts pipes in 
-  consume_pipes (Array.to_list (Array.map (fun (_in, out) -> out) pipes)) reducer reducer_init
-
+  let pipes = maprange (fun _n -> Unix.pipe ~cloexec:false ()) ncores in
+  let _ = Array.iter2 (fun part (_pread, pwrite) -> spawn_worker combiner part pwrite) parts pipes in 
+  consume_pipes (Array.to_list (Array.map (fun (pread, _pwrite) -> pread) pipes)) reducer reducer_init
 
 let iter_word_histograms cluster_ids word_hists fname =
   iter_xml_pages fname (fun (_req : Warc.warc_entry) (headers : Warc.header) _head xml ->
-    try (
-        let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
-        let url = Warc.get_url headers in 
-        let cluster_id = Int32.to_int (url_cluster_id cluster_ids url) in 
-        let cluster_hist = Array.get word_hists cluster_id in 
-        List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
-    ) with Not_found -> ()
+    let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
+    let url = Warc.get_url headers in 
+    let cluster_id = url_cluster_id cluster_ids url in 
+    let cluster_hist = Array.get word_hists cluster_id in 
+    List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
   ); ()
 
 let word_histogram_worker cluster_ids word_hists fnames = 
   let _ = Array.iter (iter_word_histograms cluster_ids word_hists) fnames in 
+  let _ = Printf.printf "%d" (Array.fold_left (+) 0 (Array.map Art.length word_hists)) in 
+  let _ = print_endline "" in 
   Array.map (Art.items) word_hists
 
 let word_histogram_reducer res hists = 
-  (for i = 0 to (Array.length res) do 
+  (for i = 0 to ((Array.length res) - 1) do 
     let target = Array.get res i in 
     let src = Array.get hists i in 
     List.iter (fun (k, v) -> Art.incr target k v) src;
