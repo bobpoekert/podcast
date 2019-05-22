@@ -9,12 +9,11 @@ let load_array fname dtype =
   let arr = Unix.map_file fd dtype c_layout false [| n_items |] in
   array1_of_genarray arr
 
-
 let load_cluster_ids fname = 
   let arr = load_array fname Int32 in 
   let len = Array1.dim arr in 
-  let hashes = Array1.sub arr 0 (len / 2) in 
-  let cluster_ids = Array1.sub arr (len / 2) len in 
+  let hashes = Array1.sub arr 0 ((len / 2) - 1) in 
+  let cluster_ids = Array1.sub arr (len / 2) (len / 2) in 
   (hashes, cluster_ids)
 
 let rec _binary_search arr k l r =
@@ -58,7 +57,7 @@ let page_iter_callback thunk (page : Warc.warc_page) =
     try
       let xml = Xml.parse_string body in
       thunk req header hrsp xml
-    with | Xml.Error(_) | Dtd.Parse_error(_) | Xml.File_not_found(_) -> ()
+    with _ -> ()
 
 let load_file fname =
   (*TODO: SHELL INJECTION VULN! fix this to use create_process instead *)
@@ -179,8 +178,8 @@ let partition n_parts inp =
   let tot_len  = Array.length inp in 
   let part_size = tot_len / n_parts in 
   let res = Array.make n_parts inp in 
-  for i = 0 to n_parts do 
-    Array.set res i (Array.sub inp (part_size * i) (part_size * i + part_size))
+  for i = 0 to (n_parts - 1) do 
+    Array.set res i (Array.sub inp (part_size * i) part_size)
   done;
   res
 
@@ -196,7 +195,7 @@ let maprange f n =
   let first = f 0 in 
   let res = Array.make n first in 
   Array.set res 0 first;
-  for i = 1 to n do 
+  for i = 1 to (n - 1) do 
     Array.set res i (f i)
   done;
   res
@@ -235,11 +234,13 @@ let parmap inp combiner reducer reducer_init =
 
 let iter_word_histograms cluster_ids word_hists fname =
   iter_xml_pages fname (fun (_req : Warc.warc_entry) (headers : Warc.header) _head xml ->
-    let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
-    let url = Warc.get_url headers in 
-    let cluster_id = Int32.to_int (url_cluster_id cluster_ids url) in 
-    let cluster_hist = Array.get word_hists cluster_id in 
-    List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
+    try (
+        let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
+        let url = Warc.get_url headers in 
+        let cluster_id = Int32.to_int (url_cluster_id cluster_ids url) in 
+        let cluster_hist = Array.get word_hists cluster_id in 
+        List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
+    ) with Not_found -> ()
   ); ()
 
 let word_histogram_worker cluster_ids word_hists fnames = 
@@ -258,14 +259,16 @@ let process_pages fnames clusters_fname outfname =
   let clusters = load_cluster_ids clusters_fname in 
   let _cluster_hashes, cluster_ids = clusters in 
   let distinct_cluster_ids = Hashtbl.create 1024 in 
-  for i = 0 to Array1.dim cluster_ids do 
+  for i = 0 to (Array1.dim cluster_ids) - 1 do 
     Hashtbl.replace distinct_cluster_ids (Array1.get cluster_ids i) 1;
   done;
   let n_clusters = Hashtbl.length distinct_cluster_ids in 
+  let _ = Printf.printf "%d" n_clusters in 
+  let _ = print_endline "" in 
   let first_hist = Art.create () in 
   let hists = Array.make n_clusters first_hist in 
   Array.set hists 0 first_hist;
-  for i = 1 to n_clusters do 
+  for i = 1 to (n_clusters - 1) do 
     Array.set hists i (Art.create ())
   done;
   let res = parmap fnames (word_histogram_worker clusters hists) word_histogram_reducer hists in 

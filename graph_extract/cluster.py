@@ -1,3 +1,4 @@
+#!/usr/bin/env OPENBLAS_NUM_THREADS=1 python3
 import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.decomposition import TruncatedSVD
@@ -14,6 +15,8 @@ inp = np.fromfile('graph.bin', dtype=np.dtype('>i4')).reshape((-1, 3))
 keys = np.unique(np.concatenate((np.unique(inp[:, 0]), np.unique(inp[:, 1]))))
 print(keys.shape, inp.shape)
 keys = np.sort(keys)
+
+print(np.min(keys), np.max(keys))
 
 print('loaded')
 
@@ -63,7 +66,7 @@ partition_size = int(eigenvecs.shape[0] / n_workers)
 partition_size -= partition_size % 1024
 
 for off in range(0, eigenvecs.shape[0], partition_size):
-    thread = threading.Thread(target=clusterer.fit, args=(eigenvecs[off:(off + partition_size)],))
+    thread = threading.Thread(target=clusterer.partial_fit, args=(eigenvecs[off:(off + partition_size)],))
     thread.daemon = True
     thread.start()
     workers.append(thread)
@@ -73,11 +76,6 @@ for worker in workers:
 
 print('clustered')
 
-clusterer.cluster_centers_.tofile('cluster_centers.npy')
+labels = clusterer.predict(eigenvecs)
 
-labels = clusterer.labels_
-
-hashes_from_id = inp[ids_left, 0]
-hash_sorted_idxes = np.argsort(hashes_from_id)
-
-np.concatenate([hashes_from_id[hash_sorted_idxes], labels[hash_sorted_idxes]]).astype(np.dtype('>i4')).tofile('cluster_ids.npy')
+np.concatenate([keys, labels]).astype(np.int32).tofile('cluster_ids.npy')
