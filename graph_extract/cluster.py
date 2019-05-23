@@ -10,7 +10,7 @@ import threading
 from multiprocessing import cpu_count
 
 
-inp = np.fromfile('graph.bin', dtype=np.dtype('>i4')).reshape((-1, 3))
+inp = np.fromfile('graph.bin', dtype=np.int64).reshape((-1, 3))
 
 keys = np.unique(np.concatenate((np.unique(inp[:, 0]), np.unique(inp[:, 1]))))
 print(keys.shape, inp.shape)
