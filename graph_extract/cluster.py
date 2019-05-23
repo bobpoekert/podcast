@@ -37,6 +37,8 @@ print('sorted')
 #sample_mat = csr_matrix((vals[sample_idxes], (ids_left[sample_idxes], ids_right[sample_idxes])), shape=(sample_size, sample_size))
 affinity_mat = csr_matrix((vals, (ids_left, ids_right)), shape=(keys.shape[0], keys.shape[0]))
 
+assert affinity_mat.shape[0] == keys.shape[0]
+
 print('sparse')
 
 if os.path.exists('eigenvecs.npy'):
@@ -49,6 +51,8 @@ else:
     eigenvecs = svd.transform(affinity_mat)
 
     eigenvecs.astype(np.float32).tofile('eigenvecs.npy')
+
+assert eigenvecs.shape[0] == keys.shape[0]
 
 print('embedded')
 
@@ -63,7 +67,7 @@ clusterer = cl.MiniBatchKMeans(n_clusters=1024, batch_size=5000)
 workers = []
 n_workers = cpu_count()
 partition_size = int(eigenvecs.shape[0] / n_workers)
-partition_size -= partition_size % 1024
+partition_size -= partition_size % n_clusters
 
 for off in range(0, eigenvecs.shape[0], partition_size):
     thread = threading.Thread(target=clusterer.partial_fit, args=(eigenvecs[off:(off + partition_size)],))
@@ -78,4 +82,7 @@ print('clustered')
 
 labels = clusterer.predict(eigenvecs)
 
-np.concatenate([keys, labels]).astype(np.int32).tofile('cluster_ids.npy')
+print(labels.shape)
+assert labels.shape == keys.shape
+
+np.concatenate([keys, labels]).astype(np.int64).tofile('cluster_ids.npy')

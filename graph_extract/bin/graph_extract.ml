@@ -11,8 +11,10 @@ let write_urls urls outf =
 let write_pairs pairs outfname = 
   let len = Hashtbl.length pairs in 
   let size_bytes = len * 3 * (kind_size_in_bytes Int64) in 
-  let _ = Unix.truncate outfname size_bytes in 
-  let target_fd = Unix.openfile outfname [] 0o640 in
+  let _ = Printf.printf "%d " size_bytes in
+  let _ = print_endline outfname in
+  let target_fd = Unix.openfile outfname [Unix.O_RDWR; O_CREAT; O_APPEND] 0o640 in
+  let _ = Unix.ftruncate target_fd size_bytes in 
   let target = Unix.map_file target_fd Int64 C_layout true [| len; 3 |] in 
   let target = array2_of_genarray target in
   let idx = ref 0 in 
@@ -34,6 +36,10 @@ let () =
   let podbean_inp_glob = Array.get Sys.argv 4 in 
   let outp_urls_fname = Array.get Sys.argv 5 in 
   let outp_pairs_fname = Array.get Sys.argv 6 in 
+  let test_map = Hashtbl.create 1 in 
+  print_endline outp_pairs_fname;
+  Hashtbl.add test_map (1, 1) 1;
+  write_pairs test_map outp_pairs_fname;
   with_out outp_urls_fname (fun outp_urls_fd ->
       let pairs = Hashtbl.create 100000 in 
       let urls, itunes_pairs = Itunes.hash_pairs itunes_inp_glob in 

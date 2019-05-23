@@ -10,9 +10,9 @@ let load_array fname dtype =
   array1_of_genarray arr
 
 let load_cluster_ids fname = 
-  let arr = load_array fname Int32 in 
+  let arr = load_array fname Int64 in 
   let len = Array1.dim arr in 
-  let hashes = Array1.sub arr 0 ((len / 2) - 1) in 
+  let hashes = Array1.sub arr 0 (len / 2) in 
   let cluster_ids = Array1.sub arr (len / 2) (len / 2) in 
   (hashes, cluster_ids)
 
@@ -25,15 +25,17 @@ let rec _binary_search arr k l r =
     else if v > k then 
       _binary_search arr k l (m - 1)
     else m 
-  else 0
+  else raise Not_found
 
 let binary_search arr k = _binary_search arr k 0 ((Array1.dim arr) - 1)
 
 let url_cluster_id (hashes, clusters) url = 
+  let url = List.nth (String.split_on_char ':' url) 1 in 
+  let url = Printf.sprintf ":%s" url in 
   let k = Murmur.murmur_hash url in 
-  let k = Int32.of_int (k lxor (k lsr 32)) in 
+  let k = Int64.of_int k in
   let idx = binary_search hashes k in 
-  Int32.to_int (Array1.get clusters idx)
+  Int64.to_int (Array1.get clusters idx)
 
 let body_string inp =
   let _rsp, body = Warc.parse_response_body inp in 
@@ -231,11 +233,13 @@ let parmap inp combiner reducer reducer_init =
 
 let iter_word_histograms cluster_ids word_hists fname =
   iter_xml_pages fname (fun (_req : Warc.warc_entry) (headers : Warc.header) _head xml ->
-    let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
-    let url = Warc.get_url headers in 
-    let cluster_id = url_cluster_id cluster_ids url in 
-    let cluster_hist = Array.get word_hists cluster_id in 
-    List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
+    try (
+        let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
+        let url = Warc.get_url headers in 
+        let cluster_id = url_cluster_id cluster_ids url in 
+        let cluster_hist = Array.get word_hists cluster_id in 
+        List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
+    ) with Not_found -> ()
   ); ()
 
 let word_histogram_worker cluster_ids word_hists fnames = 
