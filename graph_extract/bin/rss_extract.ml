@@ -29,11 +29,13 @@ let rec _binary_search arr k l r =
 
 let binary_search arr k = _binary_search arr k 0 ((Array1.dim arr) - 1)
 
-let url_cluster_id (hashes, clusters) url = 
+let url_hash url = 
   let url = List.nth (String.split_on_char ':' url) 1 in 
   let url = Printf.sprintf ":%s" url in 
-  let k = Murmur.murmur_hash url in 
-  let k = Int64.of_int k in
+  Murmur.murmur_hash url
+
+let url_cluster_id (hashes, clusters) url = 
+  let k = url_hash url |> Int64.of_int in 
   let idx = binary_search hashes k in 
   Int64.to_int (Array1.get clusters idx)
 
@@ -231,6 +233,65 @@ let parmap inp combiner reducer reducer_init =
   let _ = Array.iter2 (fun part (_pread, pwrite) -> spawn_worker combiner part pwrite) parts pipes in 
   consume_pipes (Array.to_list (Array.map (fun (pread, _pwrite) -> pread) pipes)) reducer reducer_init
 
+type tree = (Art.tree * int)
+
+let into_tree words : tree =
+  let res = Art.create () in 
+  List.iter (fun word -> Art.incr res word 1) words;
+  (res, Art.sum res)
+
+let load_tree fname : tree array = 
+  let chan = open_in fname in 
+  let data = Marshal.from_channel chan in 
+  let _ = close_file chan in 
+  Array.map (fun rows -> 
+    let tree = Art.create () in 
+    List.iter (fun (k, v) -> Art.put tree k v) rows;
+    (tree, Art.sum tree)
+  ) data
+
+
+let tree_similarity a b =
+  let a, a_sum = a in
+  let b, _b_sum = b in 
+  Art.fold a (fun k v res -> 
+    try (
+      let vb = Art.get b k in
+      res - abs (v - vb)
+    ) with Not_found -> res
+  ) a_sum
+
+let array2_with_file fname dtype dim1 dim2 thunk =
+  let target_fd = Unix.openfile fname [Unix.O_RDWR; Unix.O_CREAT; Unix.O_APPEND] 0o640 in
+  let size_bytes = dim1 * dim2 * (kind_size_in_bytes dtype) in 
+  let _ = Unix.ftruncate target_fd size_bytes in 
+  let target = Unix.map_file target_fd dtype C_layout true [| dim1; dim2 |] in 
+  let res = Bigarray.array2_of_genarray target in
+  let v = thunk res in 
+  Unix.close target_fd;
+  v
+
+let pairwise_tree_similarities target trees = 
+  let n_trees = Array.length trees in
+  for l = 0 to n_trees do 
+    for r = 0 to n_trees do 
+      if l != r then (
+        Array2.set target l r (Int64.of_int (tree_similarity (Array.get trees l) (Array.get trees r)))
+      )
+    done
+  done;
+  target
+
+let pairwise_tree_similarities_to_file fname trees = 
+  let dim_size = Array.length trees in 
+  let _ = array2_with_file fname Int64 dim_size dim_size (fun arr -> pairwise_tree_similarities arr trees) in ()
+
+let words_vec hists words = 
+  let wt = into_tree words in 
+  let sims = Array.map (tree_similarity wt) hists in 
+  let total_sim = float_of_int (Array.fold_left (+) 0 sims) in 
+  Array.map (fun v -> (float_of_int v) /. total_sim) sims
+
 let iter_word_histograms cluster_ids word_hists fname =
   iter_xml_pages fname (fun (_req : Warc.warc_entry) (headers : Warc.header) _head xml ->
     try (
@@ -256,7 +317,49 @@ let word_histogram_reducer res hists =
   done);
   res
 
-let process_pages fnames clusters_fname outfname = 
+let pack_i32 v = 
+  let l = Int32.to_int v in 
+  let r = Int32.to_int (Int32.shift_right_logical v 24) in
+  let res = Bytes.make 4 ' ' in 
+  Bytes.set res 0 (Char.unsafe_chr (l land 0xFF));
+  Bytes.set res 1 (Char.unsafe_chr ((l lsr 8) land 0xFF));
+  Bytes.set res 2 (Char.unsafe_chr ((l lsr 16) land 0xFF));
+  Bytes.set res 3 (Char.unsafe_chr (r land 0xFF));
+  Bytes.to_string res
+
+let pack_float32 v = 
+  let bits = Int32.bits_of_float v in 
+  pack_i32 bits
+
+let pack_int64 v =
+  (pack_i32 (Int64.to_int32 v)) ^ (pack_i32 (Int64.to_int32 (Int64.shift_right_logical v 32)))
+
+let generate_page_vecs outfname infnames trees = 
+  let ncores = (Corecount.count () |> Nativeint.to_int) in 
+  let parts = partition ncores infnames in 
+  let pids = Array.mapi (fun i part ->
+    let pid = Unix.fork () in 
+    if pid = 0 then (
+      let outf = open_out (Printf.sprintf "%s.%d" outfname i) in 
+      Array.iter (fun xml_fname -> 
+        iter_xml_pages xml_fname (fun (_req: Warc.warc_entry) (headers: Warc.header) _head xml ->
+          let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
+          let page_tree = into_tree meta_text in 
+          let vec = Array.map (tree_similarity page_tree) trees in
+          let vec_sum = Array.fold_left (+) 0 vec |> Float.of_int in 
+          let vec = Array.map (fun v -> (Float.of_int v) /. vec_sum) vec in 
+          let id = url_hash (Warc.get_url headers) |> Int64.of_int in 
+          output_string outf (pack_int64 id);
+          Array.iter (fun v -> output_string outf (pack_float32 v)) vec;
+        )
+      ) part;
+      close_out outf;
+      exit 0;
+    ) else pid
+  ) parts in 
+  Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids; ()
+
+let process_pages fnames clusters_fname outfname pairwise_outfname vecs_outfname = 
   let clusters = load_cluster_ids clusters_fname in 
   let _cluster_hashes, cluster_ids = clusters in 
   let distinct_cluster_ids = Hashtbl.create 1024 in 
@@ -273,12 +376,17 @@ let process_pages fnames clusters_fname outfname =
     Array.set hists i (Art.create ())
   done;
   let res = parmap fnames (word_histogram_worker clusters hists) word_histogram_reducer hists in 
+  let res_trees = Array.map (fun t -> (t, Art.sum t)) res in 
   let out = open_out outfname in
   Marshal.to_channel out (Array.map Art.items res) [];
-  close_out out; ()
+  close_out out;
+  pairwise_tree_similarities_to_file pairwise_outfname res_trees;
+  generate_page_vecs vecs_outfname fnames res_trees; ()
 
 let () = 
   let clusters_fname = Array.get Sys.argv 1 in 
   let outfname = Array.get Sys.argv 2 in 
-  let fnames = Array.sub Sys.argv 3 ((Array.length Sys.argv) - 3) in 
-  process_pages fnames clusters_fname outfname; ()
+  let pairwise_outfname = Array.get Sys.argv 3 in
+  let vecs_outfname = Array.get Sys.argv 4 in 
+  let fnames = Array.sub Sys.argv 5 ((Array.length Sys.argv) - 5) in 
+  process_pages fnames clusters_fname outfname pairwise_outfname vecs_outfname; ()
