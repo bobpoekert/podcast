@@ -73,7 +73,7 @@ let rec _clean_tokens tokens res =
   | [] -> res
   | h :: t ->
     match h with
-    | `Text(v) -> _clean_tokens t (v :: res)
+    | `Text(v) -> _clean_tokens t ((String.lowercase_ascii v) :: res)
     | `Delim(_) -> _clean_tokens t res
 
 let clean_tokens tokens = _clean_tokens tokens []
