@@ -102,7 +102,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let dists_arrays = Array.map (make_dist_array big_tree 10000) dists in 
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     let pids = Array.make ncores 0 in 
-    (for i = 0 to ncores do 
+    (for i = 0 to (ncores - 1) do 
       let pid = Unix.fork () in 
       if pid == 0 then
         try_finalize (fun () ->
