@@ -95,11 +95,11 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let n_dists = Array.length dists in 
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in 
-  let dists_2d = load_array2 fname_2d Float64 n_dists in 
+  let dists_2d = load_array2 fname_2d Float32 n_dists in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
   let chunksize_y = out_height / ncores in
-  let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in 
+  let dists_arrays = Array.map (make_dist_array big_tree 10000) dists in 
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     let pids = Array.make ncores 0 in 
     (for i = 0 to ncores do 

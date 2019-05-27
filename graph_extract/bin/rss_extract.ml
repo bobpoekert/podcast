@@ -172,14 +172,18 @@ let tree_similarity a b =
 
 
 let pairwise_tree_similarities target trees = 
-  let n_trees = Array.length trees in
-  for l = 0 to n_trees do 
-    for r = 0 to n_trees do 
-      if l != r then (
-        Array2.set target l r (Int64.of_int (tree_similarity (Array.get trees l) (Array.get trees r)))
-      )
-    done
-  done;
+  let n_trees = (Array.length trees) - 1 in
+  let batch_size = n_trees / (corecount ()) in 
+  parrun (fun batch ->
+    let start = batch_size * batch in 
+    for l = start to (start + batch_size) do 
+      for r = 0 to n_trees do 
+        if l != r then (
+          Array2.set target l r (Int64.of_int (tree_similarity (Array.get trees l) (Array.get trees r)))
+        )
+      done
+    done;
+  )
   target
 
 let pairwise_tree_similarities_to_file fname trees = 
@@ -243,7 +247,9 @@ let generate_page_vecs outfname infnames trees =
       let outf = open_out (Printf.sprintf "%s.%d" outfname i) in 
       Array.iter (fun xml_fname -> 
         iter_xml_pages xml_fname (fun (_req: Warc.warc_entry) (headers: Warc.header) _head xml ->
-          let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
+          let meta_text = List.filter (fun s -> (String.length s) < 25) (
+            List.concat (List.map tokenize_text (channel_meta_text xml))
+          ) in 
           let page_tree = into_tree meta_text in 
           let vec = Array.map (tree_similarity page_tree) trees in
           let vec_sum = Array.fold_left (+) 0 vec |> Float.of_int in 

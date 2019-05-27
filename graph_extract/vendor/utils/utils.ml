@@ -241,12 +241,24 @@ let rec consume_pipes pipes reducer res =
     consume_pipes (remove pipes read) reducer res
   )
 
+let corecount () = Corecount.count () |> Nativeint.to_int
+
 let parmap inp combiner reducer reducer_init = 
-  let ncores = (Corecount.count () |> Nativeint.to_int) in 
+  let ncores = corecount () in 
   let parts = partition ncores inp in 
   let pipes = maprange (fun _n -> Unix.pipe ~cloexec:false ()) ncores in
   let _ = Array.iter2 (fun part (_pread, pwrite) -> spawn_worker combiner part pwrite) parts pipes in 
   consume_pipes (Array.to_list (Array.map (fun (pread, _pwrite) -> pread) pipes)) reducer reducer_init
+
+let parrun thunk = 
+  let ncores = corecount () in 
+  let pids = maprange (fun i -> 
+    let pid = Unix.fork () in 
+    if pid == 0 then 
+      try_finalize (fun () -> thunk i) (fun () -> exit 0)
+    else pid
+  ) ncores in
+  Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids
 
 let argsort arr = 
   let n_items = Array.length arr in 
