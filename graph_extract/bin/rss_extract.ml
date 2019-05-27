@@ -1,13 +1,6 @@
 open Cohttp
 open Bigarray
-
-let load_array fname dtype = 
-  let size_bytes = (Unix.stat fname).st_size in 
-  let item_size = Bigarray.kind_size_in_bytes dtype in 
-  let n_items = size_bytes / item_size in 
-  let fd = Unix.openfile fname [] 0o640 in 
-  let arr = Unix.map_file fd dtype c_layout false [| n_items |] in
-  array1_of_genarray arr
+open Utils
 
 let load_cluster_ids fname = 
   let arr = load_array fname Int64 in 
@@ -16,23 +9,6 @@ let load_cluster_ids fname =
   let cluster_ids = Array1.sub arr (len / 2) (len / 2) in 
   (hashes, cluster_ids)
 
-let rec _binary_search arr k l r =
-  if l <= r then 
-    let m = ((l + r) / 2) in 
-    let v = Array1.get arr m in 
-    if v < k then 
-      _binary_search arr k (m + 1) r
-    else if v > k then 
-      _binary_search arr k l (m - 1)
-    else m 
-  else raise Not_found
-
-let binary_search arr k = _binary_search arr k 0 ((Array1.dim arr) - 1)
-
-let url_hash url = 
-  let url = List.nth (String.split_on_char ':' url) 1 in 
-  let url = Printf.sprintf ":%s" url in 
-  Murmur.murmur_hash url
 
 let url_cluster_id (hashes, clusters) url = 
   let k = url_hash url |> Int64.of_int in 
@@ -166,73 +142,6 @@ let item_guid item_xml =
     | Some(tag) -> Some(Xml.attrib tag "url")
     | None -> None
 
-let rec _partition parts inp = 
-  match inp with 
-  | [] -> parts
-  | _item :: inp -> (
-    let part = List.hd parts in 
-    let parts = List.tl parts in 
-    _partition (List.append parts [part]) inp
-  )
-
-let partition n_parts inp = 
-  let tot_len  = Array.length inp in 
-  let part_size = tot_len / n_parts in 
-  let res = Array.make n_parts inp in 
-  for i = 0 to (n_parts - 1) do 
-    Array.set res i (Array.sub inp (part_size * i) part_size)
-  done;
-  res
-
-let spawn_worker combiner part pipe_out = 
-  if Unix.fork () == 0 then (
-    let res = combiner part in 
-    let _ = print_endline "---" in 
-    let chan_out = Unix.out_channel_of_descr pipe_out in 
-    Marshal.to_channel chan_out res [];
-    flush_all ();
-    exit 0;
-  )
-
-let maprange f n =
-  let first = f 0 in 
-  let res = Array.make n first in 
-  Array.set res 0 first;
-  for i = 1 to (n - 1) do 
-    Array.set res i (f i)
-  done;
-  res
-
-let contains l v = List.exists (fun vv -> vv == v) l
-let remove a b = List.filter (fun v -> not (contains b v)) a
-
-let rec reduce_fds fds reducer res = 
-  match fds with
-  | [] -> res 
-  | h :: t -> (
-      let chan = Unix.in_channel_of_descr h in 
-      let v = Marshal.from_channel chan in 
-      reduce_fds t reducer (reducer res v)
-  )
-
-let rec consume_pipes pipes reducer res = 
-  match pipes with 
-  | [] -> res 
-  | _ -> (
-    let read, _wirte, _ex = Unix.select pipes [] [] (-1.0) in
-    let _ = print_endline ".." in 
-    let res = reduce_fds read reducer res in 
-    List.iter Unix.close read;
-    consume_pipes (remove pipes read) reducer res
-  )
-
-let parmap inp combiner reducer reducer_init = 
-  let ncores = (Corecount.count () |> Nativeint.to_int) in 
-  let parts = partition ncores inp in 
-  let pipes = maprange (fun _n -> Unix.pipe ~cloexec:false ()) ncores in
-  let _ = Array.iter2 (fun part (_pread, pwrite) -> spawn_worker combiner part pwrite) parts pipes in 
-  consume_pipes (Array.to_list (Array.map (fun (pread, _pwrite) -> pread) pipes)) reducer reducer_init
-
 type tree = (Art.tree * int)
 
 let into_tree words : tree =
@@ -261,15 +170,6 @@ let tree_similarity a b =
     ) with Not_found -> res
   ) a_sum
 
-let array2_with_file fname dtype dim1 dim2 thunk =
-  let target_fd = Unix.openfile fname [Unix.O_RDWR; Unix.O_CREAT; Unix.O_APPEND] 0o640 in
-  let size_bytes = dim1 * dim2 * (kind_size_in_bytes dtype) in 
-  let _ = Unix.ftruncate target_fd size_bytes in 
-  let target = Unix.map_file target_fd dtype C_layout true [| dim1; dim2 |] in 
-  let res = Bigarray.array2_of_genarray target in
-  let v = thunk res in 
-  Unix.close target_fd;
-  v
 
 let pairwise_tree_similarities target trees = 
   let n_trees = Array.length trees in

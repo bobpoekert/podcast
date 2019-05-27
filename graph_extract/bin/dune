@@ -1,12 +1,17 @@
 (executable
     (name graph_extract)
-    (modules graph_extract utils soundcloud itunes podbean)
-    (libraries warc yojson lambdasoup murmur parmap re))
+    (modules graph_extract soundcloud itunes podbean)
+    (libraries warc yojson lambdasoup murmur parmap re utils))
 
 (executable
     (name rss_extract)
     (modules rss_extract)
-    (libraries warc xml-light re murmur parmap art corecount cohttp))
+    (libraries warc xml-light re murmur parmap art corecount cohttp utils))
+
+(executable
+    (name word_map)
+    (modules word_map)
+    (libraries murmur art corecount utils))
 
 (env
  (dev
