@@ -183,7 +183,7 @@ let pairwise_tree_similarities target trees =
         )
       done
     done;
-  )
+  );
   target
 
 let pairwise_tree_similarities_to_file fname trees = 
