@@ -42,8 +42,9 @@ let distance x1 y1 x2 y2 =
 let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init = 
   (* k-way merge *)
   let insize = Array.length arrs in 
-  let idxes = Array.make insize 0 in
-  let arg = Array.make insize (Array.get (let _, v = (Array.get arrs 0) in v) 1) in 
+  let arg_idxes = Array.make insize 0 in
+  let arg = Array.make insize (Array.get (let _, v = (Array.get arrs 0) in v) 1) in
+  let idxes = Array.make insize 0 in 
   let lengths = Array.map (fun (k, _) -> Array.length k) arrs in 
   let rec _fold_pair_arrays acc n_arrays =
     if n_arrays < 1 then acc else (
@@ -59,14 +60,33 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
           if k == mink then (
             Array.set arg argsize (Array.get vs idx);
             Array.set idxes i (idx + 1);
+            Array.set arg_idxes argsize i;
             (i + 1, argsize + 1, n_arrays)
           ) else (i + 1, argsize, n_arrays)
         )
       ) (0, 0, n_arrays) idxes in
-      _fold_pair_arrays (thunk acc mink (Array.sub arg 0 argsize)) n_arrays
+      _fold_pair_arrays (thunk acc mink (Array.sub arg 0 argsize) (Array.sub arg_idxes 0 argsize)) n_arrays
     ) in 
   _fold_pair_arrays init insize
 
+let rec _array_filteri thunk arr res res_off arr_off arr_len = 
+  if arr_off >= arr_len then (Array.sub res 0 res_off) else (
+    let v = Array.get arr arr_off in 
+    if (thunk arr_off v) then (
+      Array.set res res_off v;
+      _array_filteri thunk arr res (res_off + 1) (arr_off + 1) arr_len
+    ) else _array_filteri thunk arr res res_off (arr_off + 1) arr_len
+  )
+
+let array_filteri thunk arr = 
+  let len = Array.length arr in 
+  if len < 1 then arr else (
+    let res = Array.make len (Array.get arr 0) in 
+    _array_filteri thunk arr res 0 0 len
+  )
+
+let array_map2 thunk a1 a2 = 
+  Array.mapi (fun i v -> thunk v (Array.get a2 i)) a1
 
 let calc_point x y dists_2d dists_arrays = 
   let n_dists = Array2.dim1 dists_2d in 
@@ -77,9 +97,10 @@ let calc_point x y dists_2d dists_arrays =
       Array.set weights i (distance x y dist_x dist_y);
     done;
 
-    let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs -> 
+    let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
       let cnt, score = Array.fold_left (fun (i, score) prob -> 
-        (i + 1, score +. (prob *. (Array.get weights i)))
+        let idx = Array.get idxes i in 
+        (i + 1, score +. (prob *. (Array.get weights idx)))
       ) (0, 0.0) probs in
       let score = score /. (float_of_int cnt) in 
       if score > res_score then (score, k) else (res_score, res_k)
