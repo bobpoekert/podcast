@@ -77,7 +77,7 @@ let calc_point x y dists_2d dists_arrays =
     for i = 0 to (n_dists - 1) do 
       let dist_x = Array2.get dists_2d i 0 in 
       let dist_y = Array2.get dists_2d i 1 in 
-      Array.set weights i (distance (float_of_int x) (float_of_int y) dist_x dist_y);
+      Array.set weights i (distance x y dist_x dist_y);
     done;
 
     let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs -> 
@@ -90,12 +90,39 @@ let calc_point x y dists_2d dists_arrays =
 
   )
 
+let point_scaler min max target = 
+  let factor = (max -. min) /. target in 
+  fun x -> factor *. x
+
+let rec _bounds_array2 arr min_x max_x min_y max_y row = 
+  if row < 0 then
+    (min_x, max_x, min_y, max_y)
+  else
+    let x = Array2.get arr row 0 in 
+    let y = Array2.get arr row 1 in 
+    _bounds_array2 arr 
+      (min min_x x)
+      (max max_x x)
+      (min min_y y)
+      (max max_y y)
+      (row - 1)
+
+let bounds_array2 arr = 
+  let d = Array2.dim1 arr in 
+  if d < 1 then raise (Invalid_argument "empty array") else
+  _bounds_array2 arr max_float min_float max_float min_float d 
+
+let scalers arr target_x target_y = 
+  let min_x, max_x, min_y, max_y = bounds_array2 arr in 
+  (point_scaler min_x max_x target_x, point_scaler min_y max_y target_y)
+
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
   let dists = load_marshal dists_fname in 
   let n_dists = Array.length dists in 
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in 
-  let dists_2d = load_array2 fname_2d Float32 n_dists in 
+  let dists_2d = load_array2 fname_2d Float32 n_dists in
+  let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
   let chunksize_y = out_height / ncores in
@@ -106,7 +133,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
       let start_y = chunksize_y * i in 
       for x = start_x to (start_x + chunksize_x) do 
         for y = start_y to (start_y + chunksize_y) do 
-          Array2.set out x y (Int64.of_int (calc_point x y dists_2d dists_arrays));
+          Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
           print_endline "."
         done
       done
