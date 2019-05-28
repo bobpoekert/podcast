@@ -18,12 +18,12 @@ graph.bin: graph_extract.exe
 cluster_ids.npy: graph.bin
 	OPENBLAS_NUM_THREADS=1 python3 cluster.py
 
-cluster_dists.bin: cluster_ids.npy rss_extract.exe
+cluster_dists.bin pairwise_clusters.bin: cluster_ids.npy rss_extract.exe
 	touch cluster_dists.bin
-	./rss_extract.exe cluster_ids.npy cluster_dists.bin `ls /mnt/lappy/rss_warc/*.warc.gz`
+	./rss_extract.exe cluster_ids.npy cluster_dists.bin pairwise_clusters.bin cluster_vecs.bin `ls /mnt/lappy/rss_warc/*.warc.gz`
 
-clusters_2d.bin: pairwise_distances.bin
+clusters_2d.bin: pairwise_clusters.bin
 	OPENBLAS_NUM_THREADS=8 python3 mds.py
  
-word_map.bin: cluster_dists.bin cluster_dists.bin word_map.exe
+word_map.bin: cluster_dists.bin clusters_2d.bin word_map.exe
 	./word_map.exe cluster_dists.bin clusters_2d.bin 320 240 word_map.bin 
