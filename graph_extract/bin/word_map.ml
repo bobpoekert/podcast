@@ -143,14 +143,12 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
-  let chunksize_y = out_height / ncores in
   let dists_arrays = Array.map (make_dist_array big_tree 10000) dists in 
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = chunksize_x * i in 
-      let start_y = chunksize_y * i in 
       for x = start_x to (start_x + chunksize_x) do 
-        for y = start_y to (start_y + chunksize_y) do 
+        for y = 0 to out_height do 
           Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
           print_endline "."
         done
