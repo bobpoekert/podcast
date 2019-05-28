@@ -45,30 +45,27 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
   let idxes = Array.make insize 0 in
   let arg = Array.make insize (Array.get (let _, v = (Array.get arrs 0) in v) 1) in 
   let lengths = Array.map (fun (k, _) -> Array.length k) arrs in 
-  let rec _fold_pair_arrays acc =
-    let _, n_arrays = Array.fold_left (fun (i, n) idx -> 
-      let len = Array.get lengths i in 
-      (i + 1, if idx < len then n + 1 else n)
-    ) (0, 0) idxes in 
+  let rec _fold_pair_arrays acc n_arrays =
     if n_arrays < 1 then acc else (
       let _, mink = Array.fold_left (fun (i, mink) idx -> 
         let ks, _vs = Array.get arrs i in 
         (i + 1, if idx >= (Array.get lengths i) then mink else min (Array.get ks idx) mink)
       ) (0, max_int) idxes in 
-      let _, argsize = Array.fold_left (fun (i, argsize) idx -> 
+      let _, argsize, n_arrays = Array.fold_left (fun (i, argsize, n_arrays) idx -> 
         let ks, vs = Array.get arrs i in 
-        if idx >= (Array.get lengths i) then (i + 1, argsize) else (
+        if idx >= (Array.get lengths i) then (i + 1, argsize, n_arrays) else (
           let k = Array.get ks idx in 
-          if k = mink then (
+          let n_arrays = if (idx + 1) >= (Array.get lengths i) then (n_arrays - 1) else n_arrays in 
+          if k == mink then (
             Array.set arg argsize (Array.get vs idx);
             Array.set idxes i (idx + 1);
-            (i + 1, argsize + 1)
-          ) else (i + 1, argsize)
+            (i + 1, argsize + 1, n_arrays)
+          ) else (i + 1, argsize, n_arrays)
         )
-      ) (0, 0) idxes in
-      _fold_pair_arrays (thunk acc mink (Array.sub arg 0 argsize))
+      ) (0, 0, n_arrays) idxes in
+      _fold_pair_arrays (thunk acc mink (Array.sub arg 0 argsize)) n_arrays
     ) in 
-  _fold_pair_arrays init
+  _fold_pair_arrays init insize
 
 
 let calc_point x y dists_2d dists_arrays = 
