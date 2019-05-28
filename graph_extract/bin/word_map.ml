@@ -96,15 +96,20 @@ let calc_point x y dists_2d dists_arrays =
       let dist_y = Array2.get dists_2d i 1 in 
       Array.set weights i (distance x y dist_x dist_y);
     done;
+    let weight_sum = Array.fold_left (+.) 0.0 weights in
+    for i = 0 to (n_dists - 1) do 
+      Array.set weights i ((Array.get weights i) /. weight_sum);
+    done;
 
-    let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
+    let score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
       let cnt, score = Array.fold_left (fun (i, score) prob -> 
         let idx = Array.get idxes i in 
         (i + 1, score +. (prob *. (Array.get weights idx)))
       ) (0, 0.0) probs in
       let score = score /. (float_of_int cnt) in 
       if score > res_score then (score, k) else (res_score, res_k)
-    ) dists_arrays (0.0, 0) in k
+    ) dists_arrays (0.0, 0) in
+    let _ = Printf.printf "%f %d " score k in k
 
   )
 
@@ -143,7 +148,6 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
-  let chunksize_y = out_height / ncores in
   let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in 
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
@@ -151,7 +155,8 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
       for x = start_x to (start_x + chunksize_x) do 
         for y = 0 to out_height do 
           Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
-          print_endline "."
+          Printf.printf "%d %d" x y;
+          print_endline ""
         done
       done
     )
