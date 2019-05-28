@@ -48,7 +48,7 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
   let rec _fold_pair_arrays acc =
     let _, n_arrays = Array.fold_left (fun (i, n) idx -> 
       let len = Array.get lengths i in 
-      (i + 1, if idx <= len then n + 1 else n)
+      (i + 1, if idx < len then n + 1 else n)
     ) (0, 0) idxes in 
     if n_arrays < 1 then acc else (
       let _, mink = Array.fold_left (fun (i, mink) idx -> 
@@ -74,7 +74,7 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
 let calc_point x y dists_2d dists_arrays = 
   let n_dists = Array2.dim1 dists_2d in 
   let weights = Array.make n_dists 0.0 in (
-    for i = 0 to n_dists do 
+    for i = 0 to (n_dists - 1) do 
       let dist_x = Array2.get dists_2d i 0 in 
       let dist_y = Array2.get dists_2d i 1 in 
       Array.set weights i (distance (float_of_int x) (float_of_int y) dist_x dist_y);
@@ -107,6 +107,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
       for x = start_x to (start_x + chunksize_x) do 
         for y = start_y to (start_y + chunksize_y) do 
           Array2.set out x y (Int64.of_int (calc_point x y dists_2d dists_arrays));
+          print_endline "."
         done
       done
     )

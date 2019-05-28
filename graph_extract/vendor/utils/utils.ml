@@ -261,9 +261,9 @@ let parrun thunk =
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids
 
 let argsort arr = 
-  let n_items = (Array.length arr) - 1 in 
+  let n_items = Array.length arr in 
   let res = Array.make n_items 0 in 
-  for i = 0 to n_items do 
+  for i = 0 to (n_items - 1) do 
     Array.set res i i
   done;
   Array.fast_sort (fun l r -> 
