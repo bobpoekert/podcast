@@ -109,6 +109,9 @@ let try_finalize f finally =
   finally ();
   res
 
+let with_exit f = 
+  try Printexc.print f (); exit 0 with _exn -> Printexc.print_backtrace stderr; exit 1
+
 let with_out infname f = 
   let fd = open_out infname in 
   try_finalize (fun () -> f fd) (fun () -> close_out fd)
@@ -139,6 +142,22 @@ let array2_with_file fname dtype dim1 dim2 thunk =
   let v = thunk res in 
   Unix.close target_fd;
   v
+
+let rec _array_filteri thunk arr res res_off arr_off arr_len = 
+  if arr_off >= arr_len then (Array.sub res 0 res_off) else (
+    let v = Array.get arr arr_off in 
+    if (thunk arr_off v) then (
+      Array.set res res_off v;
+      _array_filteri thunk arr res (res_off + 1) (arr_off + 1) arr_len
+    ) else _array_filteri thunk arr res res_off (arr_off + 1) arr_len
+  )
+
+let array_filteri thunk arr = 
+  let len = Array.length arr in 
+  if len < 1 then arr else (
+    let res = Array.make len (Array.get arr 0) in 
+    _array_filteri thunk arr res 0 0 len
+  )
 
 let load_marshal fname = 
   let fd = open_in fname in
@@ -172,14 +191,14 @@ let rec _binary_search_idx_v arr k l r =
       _binary_search_idx_v arr k (m + 1) r
     else if v > k then 
       _binary_search_idx_v arr k l (m - 1)
-    else m
+    else m 
   else r
 
 let binary_search_idx_v arr k = _binary_search_idx_v arr k 0 ((Array.length arr) - 1)
 
 let binary_search_v arr k = 
-  let idx = binary_search_idx_v arr k in 
-  if (Array.get arr idx) == k then idx else raise Not_found
+  let idx = binary_search_idx_v arr k in
+  if idx >= 0 && (Array.get arr idx) == k then idx else raise Not_found
 
 let url_hash url = 
   let url = List.nth (String.split_on_char ':' url) 1 in 
@@ -259,7 +278,7 @@ let parrun thunk =
   let pids = maprange (fun i -> 
     let pid = Unix.fork () in 
     if pid == 0 then 
-      (try_finalize (fun () -> thunk i; ) (fun () -> exit 0); 1)
+      (with_exit (fun () -> thunk i; ); 1)
     else pid
   ) ncores in
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids

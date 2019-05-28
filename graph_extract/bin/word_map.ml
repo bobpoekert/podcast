@@ -69,21 +69,6 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
     ) in 
   _fold_pair_arrays init insize
 
-let rec _array_filteri thunk arr res res_off arr_off arr_len = 
-  if arr_off >= arr_len then (Array.sub res 0 res_off) else (
-    let v = Array.get arr arr_off in 
-    if (thunk arr_off v) then (
-      Array.set res res_off v;
-      _array_filteri thunk arr res (res_off + 1) (arr_off + 1) arr_len
-    ) else _array_filteri thunk arr res res_off (arr_off + 1) arr_len
-  )
-
-let array_filteri thunk arr = 
-  let len = Array.length arr in 
-  if len < 1 then arr else (
-    let res = Array.make len (Array.get arr 0) in 
-    _array_filteri thunk arr res 0 0 len
-  )
 
 let array_map2 thunk a1 a2 = 
   Array.mapi (fun i v -> thunk v (Array.get a2 i)) a1
@@ -120,10 +105,12 @@ let calc_point x y dists_2d dists_arrays (big_hashes, big_probs) =
 
     let score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
       let cnt, score = Array.fold_left (fun (i, score) prob -> 
-        let idx = Array.get idxes i in
-        let k_idx = binary_search_v big_hashes k in 
-        let big_prob = Array.get big_probs k_idx in 
-        (i + 1, score +. ((prob *. (Array.get weights idx)) /. big_prob))
+        try ( 
+            let idx = Array.get idxes i in
+            let k_idx = binary_search_v big_hashes k in 
+            let big_prob = Array.get big_probs k_idx in 
+            (i + 1, score +. ((prob *. (Array.get weights idx)) /. big_prob))
+        ) with Not_found -> (i + 1, score)
       ) (0, 0.0) probs in
       let score = score /. (float_of_int cnt) in 
       if score > res_score then (score, k) else (res_score, res_k)

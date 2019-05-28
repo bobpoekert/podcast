@@ -265,6 +265,7 @@ let generate_page_vecs outfname infnames trees =
   ) parts in 
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids; ()
 
+
 let process_pages fnames clusters_fname outfname pairwise_outfname vecs_outfname = 
   let clusters = load_cluster_ids clusters_fname in 
   let _cluster_hashes, cluster_ids = clusters in 
@@ -282,6 +283,7 @@ let process_pages fnames clusters_fname outfname pairwise_outfname vecs_outfname
     Array.set hists i (Art.create ())
   done;
   let res = parmap fnames (word_histogram_worker clusters hists) word_histogram_reducer hists in 
+  let res = array_filteri (fun _i v -> (Art.length v) > 1) res in 
   let res_trees = Array.map (fun t -> (t, Art.sum t)) res in 
   let out = open_out outfname in
   Marshal.to_channel out (Array.map Art.items res) [];
