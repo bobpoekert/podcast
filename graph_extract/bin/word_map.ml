@@ -14,23 +14,37 @@ let array_shift_right arr idx n =
   Array.blit arr idx arr (idx + n) ((Array.length arr) - idx - n)
 
 let make_dist_array (big_tree, big_sum) n_res dist = 
+  if n_res > (List.length dist) then raise (Invalid_argument "n_res must be smaller than dist");
   let total = List.fold_left (fun acc (_k, v) -> acc + v) 0 dist |> float_of_int in 
   let big_sum = float_of_int big_sum in 
   let res_keys = Array.make n_res 0 in 
   let res_probs = Array.make n_res 0.0 in 
-  let _ = List.iter (fun (k, v) -> 
+  let _res_size = List.fold_left (fun i (k, v) -> 
+    let k_hash = Murmur.murmur_hash k in 
     let prob = (float_of_int v) /. total in 
     let tot_prob = (float_of_int (Art.get big_tree k)) /. big_sum in 
     let cond_prob = prob /. tot_prob in 
-    if cond_prob > (Array.get res_probs 0) then (
-      let insert_idx = binary_search_idx_v res_probs cond_prob in ( 
-      array_shift_right res_probs insert_idx 1;
-      Array.set res_probs insert_idx cond_prob;
-      array_shift_right res_keys insert_idx 1;
-      Array.set res_keys insert_idx (Murmur.murmur_hash k)
+    if i < n_res then (
+      Array.set res_keys i k_hash;
+      Array.set res_probs i cond_prob
+    ) else (
+      if i == n_res then (
+        let idxes = argsort res_keys in (
+          get_indexes_inplace res_keys idxes;
+          get_indexes_inplace res_probs idxes;
+        )
       );
-    )
-  ) dist in
+      if cond_prob > (Array.get res_probs 0) then (
+        let insert_idx = binary_search_idx_v res_probs cond_prob in ( 
+        array_shift_right res_probs insert_idx 1;
+        Array.set res_probs insert_idx cond_prob;
+        array_shift_right res_keys insert_idx 1;
+        Array.set res_keys insert_idx k_hash 
+        );
+      );
+    );
+    i + 1
+  ) 0 dist in
   let sort_idxes = argsort res_keys in 
   (get_indexes res_keys sort_idxes, get_indexes res_probs sort_idxes)
 

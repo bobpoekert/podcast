@@ -298,3 +298,7 @@ let argsort arr =
 
 let get_indexes arr idxes = 
   Array.map (Array.get arr) idxes
+
+let get_indexes_inplace arr idxes = 
+  let res = get_indexes arr idxes in 
+  Array.blit res 0 arr 0 (Array.length arr);
