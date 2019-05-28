@@ -108,8 +108,8 @@ let rec _bounds_array2 arr min_x max_x min_y max_y row =
       (row - 1)
 
 let bounds_array2 arr = 
-  let d = Array2.dim1 arr in 
-  if d < 1 then raise (Invalid_argument "empty array") else
+  let d = (Array2.dim1 arr) - 1 in 
+  if d < 0 then raise (Invalid_argument "empty array") else
   _bounds_array2 arr max_float min_float max_float min_float d 
 
 let scalers arr target_x target_y = 
@@ -126,7 +126,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
   let chunksize_y = out_height / ncores in
-  let dists_arrays = Array.map (make_dist_array big_tree 10000) dists in 
+  let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in 
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = chunksize_x * i in 
