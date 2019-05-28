@@ -177,6 +177,10 @@ let rec _binary_search_idx_v arr k l r =
 
 let binary_search_idx_v arr k = _binary_search_idx_v arr k 0 ((Array.length arr) - 1)
 
+let binary_search_v arr k = 
+  let idx = binary_search_idx_v arr k in 
+  if (Array.get arr idx) == k then idx else raise Not_found
+
 let url_hash url = 
   let url = List.nth (String.split_on_char ':' url) 1 in 
   let url = Printf.sprintf ":%s" url in 

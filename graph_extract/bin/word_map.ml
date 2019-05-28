@@ -88,7 +88,24 @@ let array_filteri thunk arr =
 let array_map2 thunk a1 a2 = 
   Array.mapi (fun i v -> thunk v (Array.get a2 i)) a1
 
-let calc_point x y dists_2d dists_arrays = 
+let tree_to_arrays (tree, tree_sum) = 
+  let tree_sum = float_of_int tree_sum in 
+  let size = Art.length tree in 
+  let hashes = Array.make size 0 in 
+  let probs = Array.make size 0.0 in 
+  let _ = Art.fold tree (fun k count idx -> 
+    let hash = Murmur.murmur_hash k in 
+    let prob = (float_of_int count) /. tree_sum in (
+      Array.set hashes idx hash;
+      Array.set probs idx prob;
+      idx + 1
+    )
+  ) 0 in 
+  let sort_idxes = argsort hashes in 
+  (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
+
+
+let calc_point x y dists_2d dists_arrays (big_hashes, big_probs) = 
   let n_dists = Array2.dim1 dists_2d in 
   let weights = Array.make n_dists 0.0 in (
     for i = 0 to (n_dists - 1) do 
@@ -103,8 +120,10 @@ let calc_point x y dists_2d dists_arrays =
 
     let score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
       let cnt, score = Array.fold_left (fun (i, score) prob -> 
-        let idx = Array.get idxes i in 
-        (i + 1, score +. (prob *. (Array.get weights idx)))
+        let idx = Array.get idxes i in
+        let k_idx = binary_search_v big_hashes k in 
+        let big_prob = Array.get big_probs k_idx in 
+        (i + 1, score +. ((prob *. (Array.get weights idx)) /. big_prob))
       ) (0, 0.0) probs in
       let score = score /. (float_of_int cnt) in 
       if score > res_score then (score, k) else (res_score, res_k)
@@ -144,6 +163,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let n_dists = Array.length dists in 
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in 
+  let big_arr = tree_to_arrays big_tree in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
@@ -152,9 +172,9 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = chunksize_x * i in 
-      for x = start_x to (start_x + chunksize_x) do 
+      for x = start_x to (start_x + chunksize_x - 1) do 
         for y = 0 to out_height do 
-          Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
+          Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays big_arr));
           Printf.printf "%d %d" x y;
           print_endline ""
         done
