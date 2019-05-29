@@ -13,6 +13,10 @@ let into_big_tree items_array =
 let array_shift_right arr idx n = 
   Array.blit arr idx arr (idx + n) ((Array.length arr) - idx - n)
 
+let assert_ordered arr = 
+  if (Array.length arr) > 1 then 
+    let _ = Array.fold_left (fun prev v -> assert (v >= prev); v) (Array.get arr 0) arr in ()
+
 let make_dist_array (big_tree, big_sum) n_res dist = 
   let n_res = min n_res (List.length dist) in 
   let total = List.fold_left (fun acc (_k, v) -> acc + v) 0 dist |> float_of_int in 
@@ -48,8 +52,13 @@ let make_dist_array (big_tree, big_sum) n_res dist =
     );
     i + 1
   ) 0 dist in
-  let sort_idxes = argsort res_keys in 
-  (get_indexes res_keys sort_idxes, get_indexes res_probs sort_idxes)
+  assert_ordered res_probs;
+  let sort_idxes = argsort res_keys in
+  let ks = get_indexes res_keys sort_idxes in 
+  let vs = get_indexes res_probs sort_idxes in 
+  let _ = assert_ordered ks in 
+  let _ = assert_ordered vs in 
+  (res_keys, res_probs)
 
 let distance x1 y1 x2 y2 = 
   let dx = x2 -. x1 in 
@@ -86,6 +95,8 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
     ) in 
   _fold_pair_arrays init insize
 
+let pivot_pair_arrays arrs = 
+  fold_pair_arrays (fun res k vs idxes -> (k, vs, idxes) :: res) arrs []
 
 let array_map2 thunk a1 a2 = 
   Array.mapi (fun i v -> thunk v (Array.get a2 i)) a1
@@ -121,16 +132,16 @@ let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) =
       Array.set weights i ((Array.get weights i) /. weight_sum);
     done;
 
-    let score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
+    let score, k = List.fold_left (fun (res_score, res_k) (k, probs, idxes) -> 
       let cnt, score = Array.fold_left (fun (i, score) prob -> 
-        try ( 
-            let idx = Array.get idxes i in
-            (i + 1, score +. (prob *. (Array.get weights idx)))
-        ) with Not_found -> (i + 1, score)
+        let idx = Array.get idxes i in 
+        let weight = Array.get weights idx in 
+        (i + 1, score +. (prob *. weight))
       ) (0, 0.0) probs in
       let score = score /. (float_of_int cnt) in 
       if score >= res_score then (score, k) else (res_score, res_k)
-    ) dists_arrays (0.0, 0) in
+    ) (0.0, 0) dists_arrays  in 
+
     let _ = Printf.printf "%f %d " score k in k
   )
 
@@ -171,6 +182,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
   let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in 
+  let dists_arrays = pivot_pair_arrays dists_arrays in
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = (chunksize_x * i) + 1 in 
