@@ -14,7 +14,7 @@ let array_shift_right arr idx n =
   Array.blit arr idx arr (idx + n) ((Array.length arr) - idx - n)
 
 let make_dist_array (big_tree, big_sum) n_res dist = 
-  if n_res > (List.length dist) then raise (Invalid_argument "n_res must be smaller than dist");
+  let n_res = min n_res (List.length dist) in 
   let total = List.fold_left (fun acc (_k, v) -> acc + v) 0 dist |> float_of_int in 
   let big_sum = float_of_int big_sum in 
   let res_keys = Array.make n_res 0 in 
@@ -23,7 +23,10 @@ let make_dist_array (big_tree, big_sum) n_res dist =
     let k_hash = Murmur.murmur_hash k in 
     let prob = (float_of_int v) /. total in 
     let tot_prob = (float_of_int (Art.get big_tree k)) /. big_sum in 
-    let cond_prob = prob /. tot_prob in 
+    let cond_prob = min 1.0 (prob /. tot_prob) in 
+    assert (prob >= 0.0 && prob <= 1.0);
+    assert (tot_prob >= 0.0 && tot_prob <= 1.0);
+    assert (cond_prob >= 0.0 && cond_prob <= 1.0);
     if i < n_res then (
       Array.set res_keys i k_hash;
       Array.set res_probs i cond_prob
@@ -95,6 +98,7 @@ let tree_to_arrays (tree, tree_sum) =
   let _ = Art.fold tree (fun k count idx -> 
     let hash = Murmur.murmur_hash k in 
     let prob = (float_of_int count) /. tree_sum in (
+      assert (prob >= 0.0 && prob <= 1.0);
       Array.set hashes idx hash;
       Array.set probs idx prob;
       idx + 1
@@ -104,7 +108,7 @@ let tree_to_arrays (tree, tree_sum) =
   (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
 
 
-let calc_point x y dists_2d dists_arrays (big_hashes, big_probs) = 
+let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) = 
   let n_dists = Array2.dim1 dists_2d in 
   let weights = Array.make n_dists 0.0 in (
     for i = 0 to (n_dists - 1) do 
@@ -121,16 +125,13 @@ let calc_point x y dists_2d dists_arrays (big_hashes, big_probs) =
       let cnt, score = Array.fold_left (fun (i, score) prob -> 
         try ( 
             let idx = Array.get idxes i in
-            let k_idx = binary_search_v big_hashes k in 
-            let big_prob = Array.get big_probs k_idx in 
-            (i + 1, score +. ((prob *. (Array.get weights idx)) /. big_prob))
+            (i + 1, score +. (prob *. (Array.get weights idx)))
         ) with Not_found -> (i + 1, score)
       ) (0, 0.0) probs in
       let score = score /. (float_of_int cnt) in 
-      if score > res_score then (score, k) else (res_score, res_k)
+      if score >= res_score then (score, k) else (res_score, res_k)
     ) dists_arrays (0.0, 0) in
     let _ = Printf.printf "%f %d " score k in k
-
   )
 
 let point_scaler min max target = 
@@ -172,9 +173,9 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in 
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
-      let start_x = chunksize_x * i in 
+      let start_x = (chunksize_x * i) + 1 in 
       for x = start_x to (start_x + chunksize_x - 1) do 
-        for y = 0 to out_height do 
+        for y = 0 to (out_height - 1) do 
           Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays big_arr));
           Printf.printf "%d %d" x y;
           print_endline ""

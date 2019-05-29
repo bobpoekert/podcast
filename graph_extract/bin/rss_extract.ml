@@ -162,13 +162,13 @@ let load_tree fname : tree array =
 
 let tree_similarity a b =
   let a, a_sum = a in
-  let b, _b_sum = b in 
+  let b, b_sum = b in 
   Art.fold a (fun k v res -> 
     try (
       let vb = Art.get b k in
       res - abs (v - vb)
     ) with Not_found -> res
-  ) a_sum
+  ) (a_sum + b_sum)
 
 
 let pairwise_tree_similarities target trees = 
@@ -266,7 +266,7 @@ let generate_page_vecs outfname infnames trees =
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids; ()
 
 
-let process_pages fnames clusters_fname outfname pairwise_outfname vecs_outfname = 
+let process_pages fnames clusters_fname outfname pairwise_outfname _vecs_outfname = 
   let clusters = load_cluster_ids clusters_fname in 
   let _cluster_hashes, cluster_ids = clusters in 
   let distinct_cluster_ids = Hashtbl.create 1024 in 
@@ -289,7 +289,7 @@ let process_pages fnames clusters_fname outfname pairwise_outfname vecs_outfname
   Marshal.to_channel out (Array.map Art.items res) [];
   close_out out;
   pairwise_tree_similarities_to_file pairwise_outfname res_trees;
-  generate_page_vecs vecs_outfname fnames res_trees; ()
+  (*generate_page_vecs vecs_outfname fnames res_trees;*) ()
 
 let () = 
   let clusters_fname = Array.get Sys.argv 1 in 
