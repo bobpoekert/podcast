@@ -127,7 +127,7 @@ let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) =
       Array.set weights i ((Array.get weights i) /. weight_sum);
     done;
 
-    let score, k = List.fold_left (fun (res_score, res_k) (k, probs, idxes) -> 
+    let _score, k = List.fold_left (fun (res_score, res_k) (k, probs, idxes) -> 
       let cnt, score = Array.fold_left (fun (i, score) prob -> 
         let idx = Array.get idxes i in 
         let weight = Array.get weights idx in 
@@ -135,9 +135,9 @@ let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) =
       ) (0, 0.0) probs in
       let score = score /. (float_of_int cnt) in 
       if score >= res_score then (score, k) else (res_score, res_k)
-    ) (0.0, 0) dists_arrays  in 
+    ) (0.0, 0) dists_arrays  in k
 
-    let _ = Printf.printf "%f %d " score k in k
+    (* let _ = Printf.printf "%f %d " score k in k *)
   )
 
 let point_scaler min max target = 
@@ -184,7 +184,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
       for x = start_x to (start_x + chunksize_x - 1) do 
         for y = 0 to (out_height - 1) do 
           Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays big_arr));
-          Printf.printf "%d %d" x y;
+          (* Printf.printf "%d %d" x y; *)
           print_endline ""
         done
       done

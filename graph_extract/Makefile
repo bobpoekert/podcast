@@ -26,4 +26,4 @@ clusters_2d.bin: pairwise_clusters.bin
 	python3 mds.py
  
 word_map.bin: cluster_dists.bin clusters_2d.bin word_map.exe
-	./word_map.exe cluster_dists.bin clusters_2d.bin 320 240 word_map.bin 
+	./word_map.exe cluster_dists.bin clusters_2d.bin 1920 1080 word_map.bin 
