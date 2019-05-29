@@ -183,21 +183,21 @@ let binary_search arr k =
   | `Found(m) -> m 
   | `Missing(_) -> raise Not_found
 
-let rec _binary_search_idx_v arr k l r =
+let rec _binary_search_idx_v arr k l r reverse =
   if l <= r then 
     let m = ((l + r) / 2) in 
     let v = Array.get arr m in 
-    if v < k then 
-      _binary_search_idx_v arr k (m + 1) r
-    else if v > k then 
-      _binary_search_idx_v arr k l (m - 1)
+    if (if reverse then k < v else v < k) then 
+      _binary_search_idx_v arr k (m + 1) r reverse
+    else if (if reverse then k > v else v > k) then 
+      _binary_search_idx_v arr k l (m - 1) reverse
     else m 
   else r
 
-let binary_search_idx_v arr k = _binary_search_idx_v arr k 0 ((Array.length arr) - 1)
+let binary_search_idx_v arr k ?reverse:(reverse=false) = _binary_search_idx_v arr k 0 ((Array.length arr) - 1) reverse
 
-let binary_search_v arr k = 
-  let idx = binary_search_idx_v arr k in
+let binary_search_v arr k ?reverse:(reverse=false) = 
+  let idx = binary_search_idx_v arr k ~reverse:reverse in
   if idx >= 0 && (Array.get arr idx) == k then idx else raise Not_found
 
 let url_hash url = 
@@ -283,7 +283,7 @@ let parrun thunk =
   ) ncores in
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids
 
-let argsort arr = 
+let argsort arr ?reverse:(reverse=false) = 
   let n_items = Array.length arr in 
   let res = Array.make n_items 0 in 
   for i = 0 to (n_items - 1) do 
@@ -292,7 +292,7 @@ let argsort arr =
   Array.fast_sort (fun l r -> 
     let lv = Array.get arr l in 
     let rv = Array.get arr r in 
-    lv - rv
+    if reverse then (rv - lv) else (lv - rv)
   ) res;
   res
 

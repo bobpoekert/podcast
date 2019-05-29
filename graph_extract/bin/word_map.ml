@@ -13,9 +13,9 @@ let into_big_tree items_array =
 let array_shift_right arr idx n = 
   Array.blit arr idx arr (idx + n) ((Array.length arr) - idx - n)
 
-let assert_ordered arr = 
+let assert_ordered arr ?reverse:(reverse=false) = 
   if (Array.length arr) > 1 then 
-    let _ = Array.fold_left (fun prev v -> assert (v >= prev); v) (Array.get arr 0) arr in ()
+    let _ = Array.fold_left (fun prev v -> assert (if reverse then (prev >= v) else (v >= prev)); v) (Array.get arr 0) arr in ()
 
 let make_dist_array (big_tree, big_sum) n_res dist = 
   let n_res = min n_res (List.length dist) in 
@@ -36,13 +36,13 @@ let make_dist_array (big_tree, big_sum) n_res dist =
       Array.set res_probs i cond_prob
     ) else (
       if i == n_res then (
-        let idxes = argsort res_keys in (
+        let idxes = argsort res_probs ~reverse:true in (
           get_indexes_inplace res_keys idxes;
           get_indexes_inplace res_probs idxes;
         )
       );
       if cond_prob > (Array.get res_probs 0) then (
-        let insert_idx = binary_search_idx_v res_probs cond_prob in ( 
+        let insert_idx = binary_search_idx_v res_probs cond_prob ~reverse:true in ( 
         array_shift_right res_probs insert_idx 1;
         Array.set res_probs insert_idx cond_prob;
         array_shift_right res_keys insert_idx 1;
@@ -52,7 +52,7 @@ let make_dist_array (big_tree, big_sum) n_res dist =
     );
     i + 1
   ) 0 dist in
-  assert_ordered res_probs;
+  assert_ordered res_probs ~reverse:true;
   let sort_idxes = argsort res_keys in
   let ks = get_indexes res_keys sort_idxes in 
   let vs = get_indexes res_probs sort_idxes in 
