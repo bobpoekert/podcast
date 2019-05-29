@@ -13,7 +13,7 @@ let into_big_tree items_array =
 let array_shift_right arr idx n = 
   Array.blit arr idx arr (idx + n) ((Array.length arr) - idx - n)
 
-let assert_ordered arr ?reverse:(reverse=false) = 
+let assert_ordered ?(reverse=false) arr = 
   if (Array.length arr) > 1 then 
     let _ = Array.fold_left (fun prev v -> assert (if reverse then (prev >= v) else (v >= prev)); v) (Array.get arr 0) arr in ()
 
@@ -36,7 +36,7 @@ let make_dist_array (big_tree, big_sum) n_res dist =
       Array.set res_probs i cond_prob
     ) else (
       if i == n_res then (
-        let idxes = argsort res_probs ~reverse:true in (
+        let idxes = argsort_generic (fun a b -> int_of_float (b -. a)) res_probs in (
           get_indexes_inplace res_keys idxes;
           get_indexes_inplace res_probs idxes;
         )

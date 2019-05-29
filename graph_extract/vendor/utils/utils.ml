@@ -194,9 +194,9 @@ let rec _binary_search_idx_v arr k l r reverse =
     else m 
   else r
 
-let binary_search_idx_v arr k ?reverse:(reverse=false) = _binary_search_idx_v arr k 0 ((Array.length arr) - 1) reverse
+let binary_search_idx_v ?(reverse=false) arr k = _binary_search_idx_v arr k 0 ((Array.length arr) - 1) reverse
 
-let binary_search_v arr k ?reverse:(reverse=false) = 
+let binary_search_v ?(reverse=false) arr k = 
   let idx = binary_search_idx_v arr k ~reverse:reverse in
   if idx >= 0 && (Array.get arr idx) == k then idx else raise Not_found
 
@@ -283,7 +283,7 @@ let parrun thunk =
   ) ncores in
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids
 
-let argsort arr ?reverse:(reverse=false) = 
+let argsort_generic comparator arr = 
   let n_items = Array.length arr in 
   let res = Array.make n_items 0 in 
   for i = 0 to (n_items - 1) do 
@@ -292,9 +292,11 @@ let argsort arr ?reverse:(reverse=false) =
   Array.fast_sort (fun l r -> 
     let lv = Array.get arr l in 
     let rv = Array.get arr r in 
-    if reverse then (rv - lv) else (lv - rv)
+    (comparator lv rv)
   ) res;
   res
+
+let argsort arr = argsort_generic (-) arr
 
 let get_indexes arr idxes = 
   Array.map (Array.get arr) idxes
