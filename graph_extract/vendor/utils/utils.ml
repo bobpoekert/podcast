@@ -294,9 +294,10 @@ let argsort_generic comparator arr =
     let rv = Array.get arr r in 
     (comparator lv rv)
   ) res;
+  let _ = Array.fold_left (fun prev v -> assert ((comparator (Array.get arr prev) (Array.get arr v)) <= 0); v) (Array.get res 0) res in 
   res
 
-let argsort arr = argsort_generic (-) arr
+let argsort arr = argsort_generic (fun a b -> if a == b then 0 else if a > b then 1 else -1) arr
 
 let get_indexes arr idxes = 
   Array.map (Array.get arr) idxes

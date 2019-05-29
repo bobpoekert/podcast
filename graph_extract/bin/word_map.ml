@@ -18,47 +18,42 @@ let assert_ordered ?(reverse=false) arr =
     let _ = Array.fold_left (fun prev v -> assert (if reverse then (prev >= v) else (v >= prev)); v) (Array.get arr 0) arr in ()
 
 let make_dist_array (big_tree, big_sum) n_res dist = 
-  let n_res = min n_res (List.length dist) in 
+  let list_len = List.length dist in 
+  let n_res = min n_res list_len in 
   let total = List.fold_left (fun acc (_k, v) -> acc + v) 0 dist |> float_of_int in 
   let big_sum = float_of_int big_sum in 
-  let res_keys = Array.make n_res 0 in 
-  let res_probs = Array.make n_res 0.0 in 
-  let _res_size = List.fold_left (fun i (k, v) -> 
+  let res_keys = Array.make list_len 0 in 
+  let res_probs = Array.make list_len 0.0 in 
+  let res_size = List.fold_left (fun i (k, v) -> 
     let k_hash = Murmur.murmur_hash k in 
     let prob = (float_of_int v) /. total in 
     let tot_prob = (float_of_int (Art.get big_tree k)) /. big_sum in 
-    let cond_prob = min 1.0 (prob /. tot_prob) in 
+    let cond_prob = prob *. tot_prob in 
+    assert (tot_prob >= 0.0 && tot_prob <= 1.0);
     assert (prob >= 0.0 && prob <= 1.0);
     assert (tot_prob >= 0.0 && tot_prob <= 1.0);
-    assert (cond_prob >= 0.0 && cond_prob <= 1.0);
-    if i < n_res then (
-      Array.set res_keys i k_hash;
-      Array.set res_probs i cond_prob
-    ) else (
-      if i == n_res then (
-        let idxes = argsort_generic (fun a b -> int_of_float (b -. a)) res_probs in (
-          get_indexes_inplace res_keys idxes;
-          get_indexes_inplace res_probs idxes;
-        )
-      );
-      if cond_prob > (Array.get res_probs 0) then (
-        let insert_idx = binary_search_idx_v res_probs cond_prob ~reverse:true in ( 
-        array_shift_right res_probs insert_idx 1;
-        Array.set res_probs insert_idx cond_prob;
-        array_shift_right res_keys insert_idx 1;
-        Array.set res_keys insert_idx k_hash 
-        );
-      );
-    );
-    i + 1
+    if cond_prob > 0.00001 then (
+        Array.set res_keys i k_hash;
+        Array.set res_probs i cond_prob;
+        i + 1
+    ) else i
   ) 0 dist in
-  assert_ordered res_probs ~reverse:true;
-  let sort_idxes = argsort res_keys in
-  let ks = get_indexes res_keys sort_idxes in 
-  let vs = get_indexes res_probs sort_idxes in 
-  let _ = assert_ordered ks in 
-  let _ = assert_ordered vs in 
-  (res_keys, res_probs)
+  if res_size < 1 then (Array.make 0 0, Array.make 0 0.0) else (
+      let res_keys = Array.sub res_keys 0 res_size in 
+      let res_probs = Array.sub res_probs 0 res_size in 
+      let n_res = min n_res res_size in
+      let prob_sort_idxes = argsort_generic (fun a b -> let v = a -. b in if v == 0.0 then 0 else if v < 0.0 then 1 else -1) res_probs in 
+      let res_keys = get_indexes res_keys prob_sort_idxes in 
+      let res_keys = Array.sub res_keys 0 n_res in 
+      let res_probs = get_indexes res_probs prob_sort_idxes in 
+      let _ = assert_ordered ~reverse:true res_probs in 
+      let res_probs = Array.sub res_probs 0 n_res in 
+      let sort_idxes = argsort res_keys in
+      let ks = get_indexes res_keys sort_idxes in 
+      let vs = get_indexes res_probs sort_idxes in 
+      let _ = assert_ordered ks in 
+      (ks, vs)
+  )
 
 let distance x1 y1 x2 y2 = 
   let dx = x2 -. x1 in 
