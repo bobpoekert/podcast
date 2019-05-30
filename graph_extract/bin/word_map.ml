@@ -98,16 +98,20 @@ let pivot_pair_arrays arrs =
 let pair_arrays_to_sparse_mat n_terms arrs = 
  (* sparse matrix of clusters x terms *)
   Sparse.Matrix.(
-    let width = Array.length arrs in 
-    let height = n_terms in 
-    let items, _ = Array.fold_left (fun (res, col_idx) (row_idxes, probs) ->
+    let max_row_mut = ref 0 in 
+    let items, max_col = Array.fold_left (fun (res, col_idx) (row_idxes, probs) ->
       let row = Array.mapi (fun i prob -> 
         let row_idx = Array.get row_idxes i in 
+        let max_row = !max_row_mut in 
+        let _ = max_row_mut := max max_row row_idx in
         ([| row_idx; col_idx |], prob)
       ) probs in 
       (Array.append res row, col_idx + 1)
     ) ([| |], 0) arrs in
-    D.of_array width height items
+    let max_row = !max_row_mut in 
+    let _ = Printf.printf "%d %d" max_row max_col in
+    let _ = print_endline "" in 
+    D.of_array max_row max_col items
   )
 
 
@@ -208,7 +212,9 @@ let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_hei
   let chunksize_x = out_width / ncores in 
   let dists_arrays = Array.map (make_dist_array big_tree 1000 (1.0 /. (float_of_int n_dists))) dists in
   let terms = get_terms dists_arrays in
+  let _ = print_endline "gen mat" in 
   let dists_arrays = pair_arrays_to_sparse_mat n_terms dists_arrays in 
+  let _ = print_endline "write terms" in 
   with_out terms_outfname (fun out -> 
     let term_hashes = Hashtbl.create n_terms in (
       Art.iter (fst big_tree) (fun k _ -> 
