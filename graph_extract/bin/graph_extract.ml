@@ -25,7 +25,7 @@ let write_pairs pairs outfname =
       Array2.set target idxv 1 (Int64.of_int r);
       Array2.set target idxv 2 (Int64.of_int v);
     );
-    idx := (!idx + 1)
+    incr idx;
   ) pairs;
   Unix.close target_fd; ()
 

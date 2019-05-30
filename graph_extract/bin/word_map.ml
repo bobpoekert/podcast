@@ -1,5 +1,6 @@
 open Bigarray
 open Utils
+open Owl
 
 let into_big_tree items_array = 
   let res = Art.create () in 
@@ -94,6 +95,25 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
 let pivot_pair_arrays arrs = 
   fold_pair_arrays (fun res k vs idxes -> (k, vs, idxes) :: res) arrs []
 
+let pair_arrays_to_sparse_mat n_terms arrs = 
+ (* sparse matrix of clusters x terms *)
+ Sparse.Matrix.(
+  let width = Array.length arrs in 
+  let height = n_terms in 
+  let mat = D.zeros width height in 
+  let _ = fold_pair_arrays (fun y _term probs idxes -> 
+    Array.iteri (fun i prob -> 
+      let idx = Array.get idxes i in 
+      D.insert mat idx y prob
+    ) probs;
+    y + 1
+  ) arrs 0 in
+  mat
+ )
+
+let get_terms arrs = 
+  fold_pair_arrays (fun res term _ _ -> term :: res) arrs []
+
 let array_map2 thunk a1 a2 = 
   Array.mapi (fun i v -> thunk v (Array.get a2 i)) a1
 
@@ -115,32 +135,22 @@ let tree_to_arrays (tree, tree_sum) =
   (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
 
 
-let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) = 
-  let n_dists = Array2.dim1 dists_2d in 
-  let weights = Array.make n_dists 0.0 in (
-    for i = 0 to (n_dists - 1) do 
-      let dist_x = Array2.get dists_2d i 0 in 
-      let dist_y = Array2.get dists_2d i 1 in 
-      Array.set weights i (distance x y dist_x dist_y);
-    done;
-    let weight_sum = Array.fold_left (+.) 0.0 weights in
-    for i = 0 to (n_dists - 1) do 
-      Array.set weights i ((Array.get weights i) /. weight_sum);
-    done;
-    let norm = (Array.fold_left (+.) 0.0 weights) in
-    assert ((norm -. 1.0) < 0.00000001);
-
-    let _score, k = List.fold_left (fun (res_score, res_k) (k, probs, idxes) -> 
-      let cnt, score = Array.fold_left (fun (i, score) prob -> 
-        let idx = Array.get idxes i in 
-        let weight = Array.get weights idx in 
-        (i + 1, score +. (prob /. weight))
-      ) (0, 0.0) probs in
-      let score = score /. (float_of_int cnt) in
-      if score >= res_score then (score, k) else (res_score, res_k)
-    ) (0.0, 0) dists_arrays  in k
-
-    (* let _ = Printf.printf "%f %d " score k in k *)
+let calc_point x y dists_2d dists_mat (_big_hashes, _big_probs) = 
+  Sparse.Matrix.(
+    let n_dists = Array2.dim1 dists_2d in 
+    let weights = D.zeros n_dists 1 in (
+      for i = 0 to (n_dists - 1) do 
+        let dist_x = Array2.get dists_2d i 0 in 
+        let dist_y = Array2.get dists_2d i 1 in 
+        D.set weights 0 i (distance x y dist_x dist_y);
+      done;
+      let weight_sum = D.sum weights in
+      let weights = D.div_scalar weights weight_sum in
+      let scores = D.div dists_mat weights in 
+      let idx, _score = D.foldi (fun idx _ (max_idx, max_score) score -> 
+        if score >= max_score then (idx, score) else (max_idx, max_score)
+      ) (0, 0.0) scores in idx
+    )
   )
 
 let point_scaler min max target = 
@@ -184,21 +194,40 @@ let scalers arr target_x target_y =
   let _ = print_endline "" in 
   (point_scaler min_x max_x target_x, point_scaler min_y max_y target_y)
 
-let make_word_map dists_fname fname_2d outfname out_width out_height = 
+let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_height = 
   let dists = load_marshal dists_fname in 
   let n_dists = Array.length dists in 
   let big_tree = into_big_tree dists in 
+  let n_terms = Art.length big_tree in 
   let big_tree = (big_tree, Art.sum big_tree) in 
   let big_arr = tree_to_arrays big_tree in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
+<<<<<<< HEAD
+  let chunksize_x = out_width / ncores in 
+  let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in
+  let terms = get_terms dists_arrays in
+  let dists_arrays = pair_arrays_to_sparse_mat n_terms dists_arrays in 
+  with_out terms_outfname (fun out -> 
+    let term_hashes = Hashtbl.create n_terms in (
+      Art.iter (fst big_tree) (fun k _ -> 
+        Hashtbl.add term_hashes (Murmur.murmur_hash k) k
+      );
+      List.iteri (fun idx h -> 
+        let k = Hashtbl.find term_hashes h in
+        Printf.fprintf out "%d\t%d\t%s\n" idx h k;
+      ) terms;
+    )
+  );
+=======
   let chunksize_x = out_width / ncores in
   let p_dist = 1.0 /. (float_of_int (Array.length dists)) in 
   let dists_arrays = Array.map (make_dist_array big_tree 5000 p_dist) dists in 
   let _ = Array.iter (fun (k, _v) -> Printf.printf "%d " (Array.length k)) dists_arrays in
   let _ = print_endline "" in 
   let dists_arrays = pivot_pair_arrays dists_arrays in
+>>>>>>> 1f258aa5ff0efebed95442f2491c904b53b209df
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = (chunksize_x * i) + 1 in 
@@ -218,4 +247,5 @@ let () =
   let width = int_of_string (Array.get Sys.argv 3) in 
   let height = int_of_string (Array.get Sys.argv 4) in 
   let outfname = Array.get Sys.argv 5 in 
-  make_word_map dists_fname fname_2d outfname width height
+  let terms_outfname = Array.get Sys.argv 6 in
+  make_word_map dists_fname fname_2d outfname terms_outfname width height
