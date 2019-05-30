@@ -205,7 +205,7 @@ let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_hei
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
-  let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in
+  let dists_arrays = Array.map (make_dist_array big_tree 1000 (1.0 /. (float_of_int n_dists))) dists in
   let terms = get_terms dists_arrays in
   let dists_arrays = pair_arrays_to_sparse_mat n_terms dists_arrays in 
   with_out terms_outfname (fun out -> 
