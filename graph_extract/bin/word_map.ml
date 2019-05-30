@@ -204,7 +204,6 @@ let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_hei
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
-<<<<<<< HEAD
   let chunksize_x = out_width / ncores in 
   let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in
   let terms = get_terms dists_arrays in
@@ -220,14 +219,6 @@ let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_hei
       ) terms;
     )
   );
-=======
-  let chunksize_x = out_width / ncores in
-  let p_dist = 1.0 /. (float_of_int (Array.length dists)) in 
-  let dists_arrays = Array.map (make_dist_array big_tree 5000 p_dist) dists in 
-  let _ = Array.iter (fun (k, _v) -> Printf.printf "%d " (Array.length k)) dists_arrays in
-  let _ = print_endline "" in 
-  let dists_arrays = pivot_pair_arrays dists_arrays in
->>>>>>> 1f258aa5ff0efebed95442f2491c904b53b209df
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = (chunksize_x * i) + 1 in 
