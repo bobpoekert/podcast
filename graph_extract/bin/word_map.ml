@@ -203,9 +203,6 @@ let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_hei
   let dists = load_marshal dists_fname in 
   let n_dists = Array.length dists in 
   let big_tree = into_big_tree dists in
-  let all_term_hashes = Array.make (Art.length big_tree) 0 in 
-  let _ = Art.fold big_tree (fun k _ i -> Array.set all_term_hashes i (Murmur.murmur_hash k); i + 1) 0 in 
-  let _ = Array.fast_sort compare all_term_hashes in 
   let big_tree = (big_tree, Art.sum big_tree) in 
   let big_arr = tree_to_arrays big_tree in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
@@ -213,6 +210,8 @@ let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_hei
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
   let dists_arrays = Array.map (make_dist_array big_tree 1000 (1.0 /. (float_of_int n_dists))) dists in
+  let all_term_hashes = get_terms dists_arrays |> Array.of_list in
+  let _ = Array.fast_sort compare all_term_hashes in 
   let _ = print_endline "gen mat" in 
   let dists_arrays = pair_arrays_to_sparse_mat all_term_hashes dists_arrays in 
   let _ = print_endline "write terms" in 
