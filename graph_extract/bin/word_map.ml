@@ -97,19 +97,19 @@ let pivot_pair_arrays arrs =
 
 let pair_arrays_to_sparse_mat n_terms arrs = 
  (* sparse matrix of clusters x terms *)
- Sparse.Matrix.(
-  let width = Array.length arrs in 
-  let height = n_terms in 
-  let mat = D.zeros width height in 
-  let _ = fold_pair_arrays (fun y _term probs idxes -> 
-    Array.iteri (fun i prob -> 
-      let idx = Array.get idxes i in 
-      D.insert mat idx y prob
-    ) probs;
-    y + 1
-  ) arrs 0 in
-  mat
- )
+  Sparse.Matrix.(
+    let width = Array.length arrs in 
+    let height = n_terms in 
+    let items, _ = Array.fold_left (fun (res, col_idx) (row_idxes, probs) ->
+      let row = Array.mapi (fun i prob -> 
+        let row_idx = Array.get row_idxes i in 
+        ([| row_idx; col_idx |], prob)
+      ) probs in 
+      (Array.append res row, col_idx + 1)
+    ) ([| |], 0) arrs in
+    D.of_array width height items
+  )
+
 
 let get_terms arrs = 
   fold_pair_arrays (fun res term _ _ -> term :: res) arrs []
@@ -146,7 +146,8 @@ let calc_point x y dists_2d dists_mat (_big_hashes, _big_probs) =
       done;
       let weight_sum = D.sum weights in
       let weights = D.div_scalar weights weight_sum in
-      let scores = D.div dists_mat weights in 
+      let scores = D.div dists_mat weights in
+      let scores = D.sum_rows scores in
       let idx, _score = D.foldi (fun idx _ (max_idx, max_score) score -> 
         if score >= max_score then (idx, score) else (max_idx, max_score)
       ) (0, 0.0) scores in idx
