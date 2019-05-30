@@ -17,7 +17,7 @@ let assert_ordered ?(reverse=false) arr =
   if (Array.length arr) > 1 then 
     let _ = Array.fold_left (fun prev v -> assert (if reverse then (prev >= v) else (v >= prev)); v) (Array.get arr 0) arr in ()
 
-let make_dist_array (big_tree, big_sum) n_res dist = 
+let make_dist_array (big_tree, big_sum) n_res p_dist dist = 
   let list_len = List.length dist in 
   let n_res = min n_res list_len in 
   let total = List.fold_left (fun acc (_k, v) -> acc + v) 0 dist |> float_of_int in 
@@ -28,11 +28,11 @@ let make_dist_array (big_tree, big_sum) n_res dist =
     let k_hash = Murmur.murmur_hash k in 
     let prob = (float_of_int v) /. total in 
     let tot_prob = (float_of_int (Art.get big_tree k)) /. big_sum in 
-    let cond_prob = prob *. tot_prob in 
+    let cond_prob = (prob *. p_dist) /. tot_prob in 
     assert (tot_prob >= 0.0 && tot_prob <= 1.0);
     assert (prob >= 0.0 && prob <= 1.0);
     assert (tot_prob >= 0.0 && tot_prob <= 1.0);
-    if cond_prob > 0.00001 then (
+    if cond_prob > 0.0001 then (
         Array.set res_keys i k_hash;
         Array.set res_probs i cond_prob;
         i + 1
@@ -126,14 +126,16 @@ let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) =
     for i = 0 to (n_dists - 1) do 
       Array.set weights i ((Array.get weights i) /. weight_sum);
     done;
+    let norm = (Array.fold_left (+.) 0.0 weights) in
+    assert ((norm -. 1.0) < 0.00000001);
 
     let _score, k = List.fold_left (fun (res_score, res_k) (k, probs, idxes) -> 
       let cnt, score = Array.fold_left (fun (i, score) prob -> 
         let idx = Array.get idxes i in 
         let weight = Array.get weights idx in 
-        (i + 1, score +. (prob *. weight))
+        (i + 1, score +. (prob /. weight))
       ) (0, 0.0) probs in
-      let score = score /. (float_of_int cnt) in 
+      let score = score /. (float_of_int cnt) in
       if score >= res_score then (score, k) else (res_score, res_k)
     ) (0.0, 0) dists_arrays  in k
 
@@ -141,8 +143,21 @@ let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) =
   )
 
 let point_scaler min max target = 
+(*
+
+y - y1 = ((y2 - y1) / (x2 - x1)) * (x - x1)
+x = x
+y1 = min
+y2 = max
+x1 = 0
+x2 = target
+
+y - min = ((max - min) / target) * x
+y = ((max - min) / target) * x + min
+
+*)
   let factor = (max -. min) /. target in 
-  fun x -> factor *. x
+  fun x -> (factor *. x) +. min
 
 let rec _bounds_array2 arr min_x max_x min_y max_y row = 
   if row < 0 then
@@ -164,6 +179,8 @@ let bounds_array2 arr =
 
 let scalers arr target_x target_y = 
   let min_x, max_x, min_y, max_y = bounds_array2 arr in 
+  let _ = Printf.printf "%f %f %f %f" min_x min_y max_x max_y in 
+  let _ = print_endline "" in 
   (point_scaler min_x max_x target_x, point_scaler min_y max_y target_y)
 
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
@@ -175,8 +192,11 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
-  let chunksize_x = out_width / ncores in 
-  let dists_arrays = Array.map (make_dist_array big_tree 1000) dists in 
+  let chunksize_x = out_width / ncores in
+  let p_dist = 1.0 /. (float_of_int (Array.length dists)) in 
+  let dists_arrays = Array.map (make_dist_array big_tree 1000 p_dist) dists in 
+  let _ = Array.iter (fun (k, _v) -> Printf.printf "%d " (Array.length k)) dists_arrays in
+  let _ = print_endline "" in 
   let dists_arrays = pivot_pair_arrays dists_arrays in
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
@@ -184,8 +204,8 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
       for x = start_x to (start_x + chunksize_x - 1) do 
         for y = 0 to (out_height - 1) do 
           Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays big_arr));
-          (* Printf.printf "%d %d" x y; *)
-          print_endline ""
+          (* Printf.printf "%d %d" x y;
+          print_endline "" *)
         done
       done
     )
