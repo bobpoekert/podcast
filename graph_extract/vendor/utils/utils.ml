@@ -233,6 +233,14 @@ let spawn_worker combiner part pipe_out =
     exit 0;
   )
 
+let arange n = 
+  let res = Array.make n 0 in (
+    for i = 0 to n - 1 do 
+      Array.set res i i 
+    done;
+    res
+  )
+
 let maprange f n =
   let first = f 0 in 
   let res = Array.make n first in 
@@ -296,6 +304,19 @@ let argsort_generic comparator arr =
   ) res;
   res
 
+let argfilter thunk arr = 
+  let alen = Array.length arr in 
+  let res = Array.make alen 0 in 
+  let off = ref 0 in 
+  for i = 0 to alen do 
+    if (thunk (Array.get arr i)) then (
+      Array.set res !off i;
+      incr off;
+    )
+  done;
+  (Array.sub res 0 !off)
+
+
 let argsort arr = argsort_generic (fun a b -> if a == b then 0 else if a > b then 1 else -1) arr
 
 let get_indexes arr idxes = 
@@ -303,4 +324,17 @@ let get_indexes arr idxes =
 
 let get_indexes_inplace arr idxes = 
   let res = get_indexes arr idxes in 
-  Array.blit res 0 arr 0 (Array.length arr);
+  Array.blit res 0 arr 0 (Array.length arr); ()
+
+let array2_slice_rows arr idxes = 
+  let width = Array2.dim2 arr in 
+  let height = Array.length idxes in 
+  let res = Array2.create (Array2.kind arr) (Array2.layout arr) width height in (
+    for idx_i = 0 to (height - 1) do 
+      let y = Array.get idxes idx_i in 
+      for x = 0 to (width - 1) do 
+        Array2.set res x y (Array2.get arr x y)
+      done;
+    done;
+    res
+  )
