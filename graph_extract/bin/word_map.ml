@@ -161,7 +161,7 @@ let tree_to_arrays (tree, tree_sum) =
   (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
 
 
-let calc_point x y dists_2d dists_mat (_big_hashes, _big_probs) = 
+let calc_point x y dists_2d dists_mat  = 
   Sparse.Matrix.(
     let n_dists = Array2.dim1 dists_2d in 
     let weights = D.zeros n_dists 1 in (
@@ -221,36 +221,46 @@ let scalers arr target_x target_y =
   let _ = print_endline "" in 
   (point_scaler min_x max_x target_x, point_scaler min_y max_y target_y)
 
-let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_height = 
-  let dists = load_marshal dists_fname in 
-  let n_dists = Array.length dists in 
-  let big_tree = into_big_tree dists in
-  let big_tree = (big_tree, Art.sum big_tree) in 
-  let big_arr = tree_to_arrays big_tree in 
+let load_mat dists_fname matrix_fname terms_outfname = 
+  if Sys.file_exists matrix_fname then Sparse.Matrix.(
+    let mat = D.load matrix_fname in 
+    let n_dists = snd (D.shape mat) in 
+    (mat, n_dists)
+  ) else Sparse.Matrix.(
+    let dists = load_marshal dists_fname in 
+    let n_dists = Array.length dists in 
+    let big_tree = into_big_tree dists in
+    let big_tree = (big_tree, Art.sum big_tree) in 
+    let dists_arrays = Array.map (make_dist_array big_tree 1000 (1.0 /. (float_of_int n_dists))) dists in
+    let all_term_hashes = get_terms dists_arrays  in
+    let _ = print_endline "gen mat" in 
+    let dists_arrays = pair_arrays_to_sparse_mat all_term_hashes dists_arrays in 
+    let _ = D.save dists_arrays matrix_fname in
+    let _ = print_endline "write terms" in 
+    let _ = with_out terms_outfname (fun out -> 
+      Art.iter (fst big_tree) (fun k _ -> 
+        try (
+          let h = Murmur.murmur_hash k in 
+          let idx = binary_search_v all_term_hashes h in 
+          Printf.fprintf out "%d\t%d\t%s\n" idx h k;
+        ) with Not_found -> ()
+      );
+    ) in 
+    (dists_arrays, n_dists)
+  )
+
+let make_word_map dists_fname fname_2d outfname terms_outfname matrix_fname out_width out_height = 
+  let dists_arrays, n_dists = load_mat dists_fname matrix_fname terms_outfname in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
-  let dists_arrays = Array.map (make_dist_array big_tree 1000 (1.0 /. (float_of_int n_dists))) dists in
-  let all_term_hashes = get_terms dists_arrays  in
-  let _ = print_endline "gen mat" in 
-  let dists_arrays = pair_arrays_to_sparse_mat all_term_hashes dists_arrays in 
-  let _ = print_endline "write terms" in 
-  with_out terms_outfname (fun out -> 
-    Art.iter (fst big_tree) (fun k _ -> 
-      try (
-        let h = Murmur.murmur_hash k in 
-        let idx = binary_search_v all_term_hashes h in 
-        Printf.fprintf out "%d\t%d\t%s\n" idx h k;
-      ) with Not_found -> ()
-    );
-  );
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = (chunksize_x * i) + 1 in 
       for x = start_x to (start_x + chunksize_x - 1) do 
         for y = 0 to (out_height - 1) do 
-          Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays big_arr));
+          Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
           (* Printf.printf "%d %d" x y;
           print_endline "" *)
         done
@@ -265,4 +275,5 @@ let () =
   let height = int_of_string (Array.get Sys.argv 4) in 
   let outfname = Array.get Sys.argv 5 in 
   let terms_outfname = Array.get Sys.argv 6 in
-  make_word_map dists_fname fname_2d outfname terms_outfname width height
+  let matrix_fname = Array.get Sys.argv 7 in 
+  make_word_map dists_fname fname_2d outfname terms_outfname matrix_fname width height
