@@ -46,6 +46,7 @@ let make_dist_array (big_tree, big_sum) n_res p_dist dist =
       let res_keys = get_indexes res_keys prob_sort_idxes in 
       let res_keys = Array.sub res_keys 0 n_res in 
       let res_probs = get_indexes res_probs prob_sort_idxes in 
+      let res_probs = Array.map log res_probs in
       let _ = assert_ordered ~reverse:true res_probs in 
       let res_probs = Array.sub res_probs 0 n_res in 
       let sort_idxes = argsort res_keys in
