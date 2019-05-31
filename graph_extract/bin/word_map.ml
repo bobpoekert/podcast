@@ -110,11 +110,15 @@ let pair_arrays_to_sparse_mat terms arrs =
     let _ = print_endline "" in 
     let n_items = Array.fold_left (+) 0 (Array.map (fun (a, _) -> Array.length a) arrs) in 
     let density = (float_of_int n_items) /. (float_of_int (max_row * max_col)) in 
-    let res = Generic.zeros Float64 ~density:density max_row max_col in 
-    let _ = Array.iteri (fun row_idx (term_ids, probs) -> 
+    let _ = Printf.printf "%f" density in 
+    let _ = print_endline "" in 
+    let res = Generic.zeros Float64 ~density:density (max_row + 1) (max_col + 1) in 
+    let _ = Array.iteri (fun col_idx (term_ids, probs) -> 
       Array.iteri (fun i term_id -> 
         let prob = Array.get probs i in 
-        D.insert res row_idx term_id prob;
+        assert (term_id <= max_row && term_id >= 0);
+        assert (col_idx <= max_col && col_idx >= 0);
+        D.insert res term_id col_idx prob;
       ) term_ids;
     ) items in res
   )
