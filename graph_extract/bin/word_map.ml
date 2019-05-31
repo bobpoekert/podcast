@@ -98,20 +98,25 @@ let pivot_pair_arrays arrs =
 let pair_arrays_to_sparse_mat terms arrs = 
  (* sparse matrix of clusters x terms *)
   Sparse.Matrix.(
-    let max_row_mut = ref 0 in 
-    let items, max_col = Array.fold_left (fun (res, col_idx) (row_idxes, probs) ->
-      let row = Array.mapi (fun i prob -> 
-        let term = Array.get row_idxes i in 
-        let row_idx = binary_search_v terms term in
-        let _ = max_row_mut := max !max_row_mut row_idx in
-        ([| row_idx; col_idx |], prob)
-      ) probs in 
-      (Array.append res row, col_idx + 1)
-    ) ([| |], 0) arrs in
+   let max_row_mut = ref 0 in 
+    let items = Array.map (fun (term_hashes, probs) -> 
+      let term_ids = Array.map (binary_search_v terms) term_hashes in 
+      let _ = max_row_mut := Array.fold_left max !max_row_mut term_ids in 
+      (term_ids, probs)
+    ) arrs in 
+    let max_col = Array.length arrs in 
     let max_row = !max_row_mut in 
     let _ = Printf.printf "%d %d" max_row max_col in
     let _ = print_endline "" in 
-    D.of_array max_row max_col items
+    let n_items = Array.fold_left (+) 0 (Array.map (fun (a, _) -> Array.length a) arrs) in 
+    let density = (float_of_int n_items) /. (float_of_int (max_row * max_col)) in 
+    let res = Generic.zeros Float64 ~density:density max_row max_col in 
+    let _ = Array.iteri (fun row_idx (term_ids, probs) -> 
+      Array.iteri (fun i term_id -> 
+        let prob = Array.get probs i in 
+        D.insert res row_idx term_id prob;
+      ) term_ids;
+    ) items in res
   )
 
 let uniq_sorted arr = 
