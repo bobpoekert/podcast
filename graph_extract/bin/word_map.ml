@@ -114,9 +114,22 @@ let pair_arrays_to_sparse_mat terms arrs =
     D.of_array max_row max_col items
   )
 
+let uniq_sorted arr = 
+  let res = Array.make (Array.length arr) (Array.get arr 0) in 
+  let _ = Array.set res 0 (Array.get arr 0) in 
+  let len, _ = Array.fold_left (fun (res_i, cur) v -> 
+    if cur == v then (res_i, v) else (
+      Array.set res res_i v;
+      (res_i + 1, v)
+    )
+  ) (1, (Array.get res 1)) arr in 
+  Array.sub res 0 len
 
 let get_terms arrs = 
-  fold_pair_arrays (fun res term _ _ -> term :: res) arrs []
+  let res = Array.map (fun (terms, _probs) -> terms) arrs 
+  |> Array.fold_left Array.append [| |] in 
+  let _ = Array.fast_sort compare res in 
+  uniq_sorted res
 
 let array_map2 thunk a1 a2 = 
   Array.mapi (fun i v -> thunk v (Array.get a2 i)) a1
@@ -210,16 +223,17 @@ let make_word_map dists_fname fname_2d outfname terms_outfname out_width out_hei
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in 
   let dists_arrays = Array.map (make_dist_array big_tree 1000 (1.0 /. (float_of_int n_dists))) dists in
-  let all_term_hashes = get_terms dists_arrays |> Array.of_list in
-  let _ = Array.fast_sort compare all_term_hashes in 
+  let all_term_hashes = get_terms dists_arrays  in
   let _ = print_endline "gen mat" in 
   let dists_arrays = pair_arrays_to_sparse_mat all_term_hashes dists_arrays in 
   let _ = print_endline "write terms" in 
   with_out terms_outfname (fun out -> 
     Art.iter (fst big_tree) (fun k _ -> 
-      let h = Murmur.murmur_hash k in 
-      let idx = binary_search_v all_term_hashes h in 
-      Printf.fprintf out "%d\t%d\t%s\n" idx h k;
+      try (
+        let h = Murmur.murmur_hash k in 
+        let idx = binary_search_v all_term_hashes h in 
+        Printf.fprintf out "%d\t%d\t%s\n" idx h k;
+      ) with Not_found -> ()
     );
   );
   array2_with_file outfname Int64 out_width out_height (fun out -> 
