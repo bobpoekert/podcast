@@ -64,33 +64,33 @@ let distance x1 y1 x2 y2 =
 let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init = 
   (* k-way merge *)
   if (Array.length arrs) < 1 then init else (
-  let insize = Array.length arrs in 
-  let arg_idxes = Array.make insize 0 in
-  let arg = Array.make insize (Array.get (let _, v = (Array.get arrs 0) in v) 1) in
-  let idxes = Array.make insize 0 in 
-  let lengths = Array.map (fun (k, _) -> Array.length k) arrs in 
-  let rec _fold_pair_arrays acc n_arrays =
-    if n_arrays < 1 then acc else (
-      let _, mink = Array.fold_left (fun (i, mink) idx -> 
-        let ks, _vs = Array.get arrs i in 
-        (i + 1, if idx >= (Array.get lengths i) then mink else min (Array.get ks idx) mink)
-      ) (0, max_int) idxes in 
-      let _, argsize, n_arrays = Array.fold_left (fun (i, argsize, n_arrays) idx -> 
-        let ks, vs = Array.get arrs i in 
-        if idx >= (Array.get lengths i) then (i + 1, argsize, n_arrays) else (
-          let k = Array.get ks idx in 
-          let n_arrays = if (idx + 1) >= (Array.get lengths i) then (n_arrays - 1) else n_arrays in 
-          if k == mink then (
-            Array.set arg argsize (Array.get vs idx);
-            Array.set idxes i (idx + 1);
-            Array.set arg_idxes argsize i;
-            (i + 1, argsize + 1, n_arrays)
-          ) else (i + 1, argsize, n_arrays)
-        )
-      ) (0, 0, n_arrays) idxes in
-      _fold_pair_arrays (thunk acc mink (Array.sub arg 0 argsize) (Array.sub arg_idxes 0 argsize)) n_arrays
-    ) in 
-  _fold_pair_arrays init insize
+    let insize = Array.length arrs in 
+    let arg_idxes = Array.make insize 0 in
+    let arg = Array.make insize (Array.get (let _, v = (Array.get arrs 0) in v) 1) in
+    let idxes = Array.make insize 0 in 
+    let lengths = Array.map (fun (k, _) -> Array.length k) arrs in 
+    let rec _fold_pair_arrays acc n_arrays =
+      if n_arrays < 1 then acc else (
+        let _, mink = Array.fold_left (fun (i, mink) idx -> 
+          let ks, _vs = Array.get arrs i in 
+          (i + 1, if idx >= (Array.get lengths i) then mink else min (Array.get ks idx) mink)
+        ) (0, max_int) idxes in 
+        let _, argsize, n_arrays = Array.fold_left (fun (i, argsize, n_arrays) idx -> 
+          let ks, vs = Array.get arrs i in 
+          if idx >= (Array.get lengths i) then (i + 1, argsize, n_arrays) else (
+            let k = Array.get ks idx in 
+            let n_arrays = if (idx + 1) >= (Array.get lengths i) then (n_arrays - 1) else n_arrays in 
+            if k == mink then (
+              Array.set arg argsize (Array.get vs idx);
+              Array.set idxes i (idx + 1);
+              Array.set arg_idxes argsize i;
+              (i + 1, argsize + 1, n_arrays)
+            ) else (i + 1, argsize, n_arrays)
+          )
+        ) (0, 0, n_arrays) idxes in
+        _fold_pair_arrays (thunk acc mink (Array.sub arg 0 argsize) (Array.sub arg_idxes 0 argsize)) n_arrays
+      ) in 
+    _fold_pair_arrays init insize
   )
 
 let pivot_pair_arrays arrs = 
@@ -116,7 +116,7 @@ let tree_to_arrays (tree, tree_sum) =
   let sort_idxes = argsort hashes in 
   (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
 
-let cutoff = 0.0001
+let k_neighbors = 20
 
 let calc_point x y dists_2d dists_arrays  = 
   let n_dists = Array2.dim1 dists_2d in 
@@ -126,34 +126,32 @@ let calc_point x y dists_2d dists_arrays  =
       let dist_y = Array2.get dists_2d i 1 in 
       Array.set weights i (distance x y dist_x dist_y);
     done;
+    let top_k_dists = Array.make k_neighbors (Array.get dists_arrays 0) in 
+    let top_k_weights = Array.make k_neighbors 0.0 in 
+    let weight_idxes = argsort weights in 
+    let _ = for i = 0 to k_neighbors do 
+      let widx = Array.get weight_idxes i in 
+      Array.set top_k_dists i (Array.get dists_arrays widx);
+      Array.set top_k_weights i (Array.get weights widx);
+    done in 
     let weight_sum = Array.fold_left (+.) 0.0 weights in
-    for i = 0 to (n_dists - 1) do 
+    let _ = for i = 0 to (n_dists - 1) do 
       Array.set weights i ((Array.get weights i) /. weight_sum);
-    done;
-
-    let n_good_dists = Array.fold_left (fun res v -> if v < cutoff then res + 1 else res) 0 weights in 
-    let filtered_dists = Array.make n_good_dists (Array.get dists_arrays 0) in 
-    let filtered_weights = Array.make n_good_dists 0.0 in 
-    let _ = Array.fold_left (fun (off, i) weight -> 
-      if weight < cutoff then (
-        Array.set filtered_dists off (Array.get dists_arrays i);
-        Array.set filtered_weights off (Array.get weights i);
-        (off + 1, i + 1)
-      ) else (off, i + 1)) (0, 0) weights in 
+    done in 
 
     let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
       let score = ref 0.0 in 
       let n_res = Array.length probs in (
         for i = 0 to n_res - 1 do 
           let idx = Array.get idxes i in 
-          let weight = Array.get filtered_weights idx in 
+          let weight = Array.get top_k_weights idx in 
           let prob = Array.get probs i in 
           score := !score +. (prob /. weight)
         done;
         let score = !score in 
         if score >= res_score then (score, k) else (res_score, res_k)
       )
-    ) filtered_dists (0.0, 0) in k
+    ) top_k_dists (0.0, 0) in k
   )
 
 let point_scaler min max target = 
