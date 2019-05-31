@@ -63,6 +63,7 @@ let distance x1 y1 x2 y2 =
 
 let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init = 
   (* k-way merge *)
+  if (Array.length arrs) < 1 then init else (
   let insize = Array.length arrs in 
   let arg_idxes = Array.make insize 0 in
   let arg = Array.make insize (Array.get (let _, v = (Array.get arrs 0) in v) 1) in
@@ -90,6 +91,7 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
       _fold_pair_arrays (thunk acc mink (Array.sub arg 0 argsize) (Array.sub arg_idxes 0 argsize)) n_arrays
     ) in 
   _fold_pair_arrays init insize
+  )
 
 let pivot_pair_arrays arrs = 
   fold_pair_arrays (fun res k vs idxes -> (k, vs, idxes) :: res) arrs []
@@ -114,7 +116,7 @@ let tree_to_arrays (tree, tree_sum) =
   let sort_idxes = argsort hashes in 
   (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
 
-let cutoff = 0.01
+let cutoff = 0.0001
 
 let calc_point x y dists_2d dists_arrays  = 
   let n_dists = Array2.dim1 dists_2d in 
