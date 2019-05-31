@@ -11,6 +11,10 @@ word_map.exe:
 	dune build bin/word_map.exe
 	cp _build/default/bin/word_map.exe .
 
+extract_words.exe:
+	dune build bin/extract_words.exe
+	cp _build/default/bin/extract_words.exe .
+
 graph.bin: graph_extract.exe
 	touch graph.bin
 	./graph_extract.exe /mnt/lappy/itunes/ /mnt/lappy/soundcloud /mnt/lappy/podbean /mnt/tiny/podbean urls.txt graph.bin
@@ -27,3 +31,6 @@ clusters_2d.bin: pairwise_clusters.bin
  
 word_map.bin: cluster_dists.bin clusters_2d.bin word_map.exe
 	./word_map.exe cluster_dists.bin clusters_2d.bin 600 800 word_map.bin 
+
+words.txt: cluster_dists.bin extract_words.exe
+	sh -c './extract_words.exe cluster_dists.bin | hashuniq > words.txt'

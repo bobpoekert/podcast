@@ -114,8 +114,9 @@ let tree_to_arrays (tree, tree_sum) =
   let sort_idxes = argsort hashes in 
   (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
 
+let cutoff = 0.01
 
-let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) = 
+let calc_point x y dists_2d dists_arrays  = 
   let n_dists = Array2.dim1 dists_2d in 
   let weights = Array.make n_dists 0.0 in (
     for i = 0 to (n_dists - 1) do 
@@ -127,20 +128,30 @@ let calc_point x y dists_2d dists_arrays (_big_hashes, _big_probs) =
     for i = 0 to (n_dists - 1) do 
       Array.set weights i ((Array.get weights i) /. weight_sum);
     done;
-    let norm = (Array.fold_left (+.) 0.0 weights) in
-    assert ((norm -. 1.0) < 0.00000001);
 
-    let _score, k = List.fold_left (fun (res_score, res_k) (k, probs, idxes) -> 
-      let cnt, score = Array.fold_left (fun (i, score) prob -> 
-        let idx = Array.get idxes i in 
-        let weight = Array.get weights idx in 
-        (i + 1, score +. (prob /. weight))
-      ) (0, 0.0) probs in
-      let score = score /. (float_of_int cnt) in
-      if score >= res_score then (score, k) else (res_score, res_k)
-    ) (0.0, 0) dists_arrays  in k
+    let n_good_dists = Array.fold_left (fun res v -> if v < cutoff then res + 1 else res) 0 weights in 
+    let filtered_dists = Array.make n_good_dists (Array.get dists_arrays 0) in 
+    let filtered_weights = Array.make n_good_dists 0.0 in 
+    let _ = Array.fold_left (fun (off, i) weight -> 
+      if weight < cutoff then (
+        Array.set filtered_dists off (Array.get dists_arrays i);
+        Array.set filtered_weights off (Array.get weights i);
+        (off + 1, i + 1)
+      ) else (off, i + 1)) (0, 0) weights in 
 
-    (* let _ = Printf.printf "%f %d " score k in k *)
+    let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
+      let score = ref 0.0 in 
+      let n_res = Array.length probs in (
+        for i = 0 to n_res - 1 do 
+          let idx = Array.get idxes i in 
+          let weight = Array.get filtered_weights idx in 
+          let prob = Array.get probs i in 
+          score := !score +. (prob /. weight)
+        done;
+        let score = !score in 
+        if score >= res_score then (score, k) else (res_score, res_k)
+      )
+    ) filtered_dists (0.0, 0) in k
   )
 
 let point_scaler min max target = 
@@ -189,7 +200,6 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let n_dists = Array.length dists in 
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in 
-  let big_arr = tree_to_arrays big_tree in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
@@ -198,13 +208,12 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let dists_arrays = Array.map (make_dist_array big_tree 1000 p_dist) dists in 
   let _ = Array.iter (fun (k, _v) -> Printf.printf "%d " (Array.length k)) dists_arrays in
   let _ = print_endline "" in 
-  let dists_arrays = pivot_pair_arrays dists_arrays in
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = (chunksize_x * i) + 1 in 
       for x = start_x to (start_x + chunksize_x - 1) do 
         for y = 0 to (out_height - 1) do 
-          Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays big_arr));
+          Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
           (* Printf.printf "%d %d" x y;
           print_endline "" *)
         done

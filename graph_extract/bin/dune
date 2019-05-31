@@ -13,6 +13,11 @@
     (modules word_map)
     (libraries murmur art corecount utils))
 
+(executable
+    (name extract_words)
+    (modules extract_words)
+    (libraries utils))
+
 (env
  (dev
    (flags (:standard -warn-error +a-42-21))
