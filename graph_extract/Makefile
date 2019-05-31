@@ -30,7 +30,10 @@ clusters_2d.bin: pairwise_clusters.bin
 	python3 mds.py
  
 word_map.bin: cluster_dists.bin clusters_2d.bin word_map.exe
-	./word_map.exe cluster_dists.bin clusters_2d.bin 1080 1920 word_map.bin 
+	./word_map.exe cluster_dists.bin clusters_2d.bin 768 1024 word_map.bin 
 
 words.txt: cluster_dists.bin extract_words.exe
 	sh -c './extract_words.exe cluster_dists.bin | hashuniq > words.txt'
+
+map_words.txt: words.txt word_map.bin
+	sh -c 'python3 map_words.py 768 1024 > map_words.txt'

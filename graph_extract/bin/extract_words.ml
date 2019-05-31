@@ -5,6 +5,6 @@ let () =
   let dists = load_marshal infname in 
   Array.iter (fun items ->
     List.iter (fun (k, _v) ->
-      print_endline k;
+      Printf.printf "%d\t%s\n" (Murmur.murmur_hash k) k;
     ) items;
   ) dists; ()

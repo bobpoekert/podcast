@@ -16,7 +16,7 @@
 (executable
     (name extract_words)
     (modules extract_words)
-    (libraries utils))
+    (libraries utils murmur))
 
 (env
  (dev

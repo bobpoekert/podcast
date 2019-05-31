@@ -66,7 +66,7 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
   if (Array.length arrs) < 1 then init else (
     let insize = Array.length arrs in 
     let arg_idxes = Array.make insize 0 in
-    let arg = Array.make insize (Array.get (let _, v = (Array.get arrs 0) in v) 1) in
+    let arg = Array.make insize (Array.get (snd (Array.get arrs 0)) 1) in
     let idxes = Array.make insize 0 in 
     let lengths = Array.map (fun (k, _) -> Array.length k) arrs in 
     let rec _fold_pair_arrays acc n_arrays =
@@ -116,7 +116,7 @@ let tree_to_arrays (tree, tree_sum) =
   let sort_idxes = argsort hashes in 
   (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
 
-let k_neighbors = 20
+let k_neighbors = 5
 
 let calc_point x y dists_2d dists_arrays  = 
   let n_dists = Array2.dim1 dists_2d in 
@@ -129,7 +129,7 @@ let calc_point x y dists_2d dists_arrays  =
     let top_k_dists = Array.make k_neighbors (Array.get dists_arrays 0) in 
     let top_k_weights = Array.make k_neighbors 0.0 in 
     let weight_idxes = argsort weights in 
-    let _ = for i = 0 to k_neighbors do 
+    let _ = for i = 0 to (k_neighbors - 1) do 
       let widx = Array.get weight_idxes i in 
       Array.set top_k_dists i (Array.get dists_arrays widx);
       Array.set top_k_weights i (Array.get weights widx);
@@ -139,19 +139,21 @@ let calc_point x y dists_2d dists_arrays  =
       Array.set weights i ((Array.get weights i) /. weight_sum);
     done in 
 
-    let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
-      let score = ref 0.0 in 
-      let n_res = Array.length probs in (
-        for i = 0 to n_res - 1 do 
-          let idx = Array.get idxes i in 
-          let weight = Array.get top_k_weights idx in 
-          let prob = Array.get probs i in 
-          score := !score +. (prob /. weight)
-        done;
-        let score = !score in 
-        if score >= res_score then (score, k) else (res_score, res_k)
-      )
-    ) top_k_dists (0.0, 0) in k
+    try (
+        let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
+          let score = ref 0.0 in 
+          let n_res = Array.length probs in (
+            for i = 0 to n_res - 1 do 
+              let idx = Array.get idxes i in 
+              let weight = Array.get top_k_weights idx in 
+              let prob = Array.get probs i in 
+              score := !score +. (prob /. weight)
+            done;
+            let score = !score in 
+            if score >= res_score then (score, k) else (res_score, res_k)
+          )
+        ) top_k_dists (0.0, 0) in k
+    ) with Invalid_argument(_) -> 0
   )
 
 let point_scaler min max target = 
@@ -198,6 +200,7 @@ let scalers arr target_x target_y =
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
   let dists = load_marshal dists_fname in 
   let n_dists = Array.length dists in 
+  let dists = Array.map (fun terms -> List.filter (fun (_k, count) -> count > 10) terms) dists in
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
@@ -210,8 +213,8 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let _ = print_endline "" in 
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
-      let start_x = (chunksize_x * i) + 1 in 
-      for x = start_x to (start_x + chunksize_x - 1) do 
+      let start_x = chunksize_x * i in 
+      for x = start_x to (start_x + chunksize_x - 2) do 
         for y = 0 to (out_height - 1) do 
           Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
           (* Printf.printf "%d %d" x y;
