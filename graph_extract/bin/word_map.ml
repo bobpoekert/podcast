@@ -197,10 +197,14 @@ let scalers arr target_x target_y =
 
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
   let dists = load_marshal dists_fname in 
+  let dists = Array.map (fun terms -> List.filter (fun (_k, count) -> count > 10) terms) dists in
+  let dists_idxes = argfilter (fun l -> (List.length l) > 0) dists in 
+  let dists = Array.map (Array.get dists) dists_idxes in 
   let n_dists = Array.length dists in 
+  let dists_2d = load_array2 fname_2d Float32 n_dists in
+  let dists_2d = array2_slice_rows dists_2d dists_idxes in 
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in 
-  let dists_2d = load_array2 fname_2d Float32 n_dists in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in
