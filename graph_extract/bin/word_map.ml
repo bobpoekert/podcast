@@ -199,10 +199,10 @@ let scalers arr target_x target_y =
 
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
   let dists = load_marshal dists_fname in 
+  let n_dists = Array.length dists in 
   let dists = Array.map (fun terms -> List.filter (fun (_k, count) -> count > 10) terms) dists in
   let dists_idxes = argfilter (fun l -> (List.length l) > 0) dists in 
   let dists = Array.map (Array.get dists) dists_idxes in 
-  let n_dists = Array.length dists in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let dists_2d = array2_slice_rows dists_2d dists_idxes in 
   let big_tree = into_big_tree dists in 
@@ -211,13 +211,13 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in
   let p_dist = 1.0 /. (float_of_int (Array.length dists)) in 
-  let dists_arrays = Array.map (make_dist_array big_tree 1000 p_dist) dists in 
+  let dists_arrays = Array.map (make_dist_array big_tree 10000 p_dist) dists in 
   let _ = Array.iter (fun (k, _v) -> Printf.printf "%d " (Array.length k)) dists_arrays in
   let _ = print_endline "" in 
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
       let start_x = chunksize_x * i in 
-      for x = start_x to (start_x + chunksize_x - 2) do 
+      for x = start_x to (start_x + chunksize_x - 1) do 
         for y = 0 to (out_height - 1) do 
           Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
           (* Printf.printf "%d %d" x y;
