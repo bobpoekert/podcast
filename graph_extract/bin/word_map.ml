@@ -66,7 +66,7 @@ let fold_pair_arrays thunk (arrs: (int array * 'a array) array) init =
   if (Array.length arrs) < 1 then init else (
     let insize = Array.length arrs in 
     let arg_idxes = Array.make insize 0 in
-    let arg = Array.make insize (Array.get (let _, v = (Array.get arrs 0) in v) 1) in
+    let arg = Array.make insize (Array.get (snd (Array.get arrs 0)) 1) in
     let idxes = Array.make insize 0 in 
     let lengths = Array.map (fun (k, _) -> Array.length k) arrs in 
     let rec _fold_pair_arrays acc n_arrays =
@@ -116,7 +116,7 @@ let tree_to_arrays (tree, tree_sum) =
   let sort_idxes = argsort hashes in 
   (get_indexes hashes sort_idxes, get_indexes probs sort_idxes)
 
-let k_neighbors = 20
+let k_neighbors = 5
 
 let calc_point x y dists_2d dists dists_overall  = 
   let n_dists = Array2.dim1 dists_2d in 
@@ -209,7 +209,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let chunksize_x = out_width / ncores in
   array2_with_file outfname Int64 out_width out_height (fun out -> 
     parrun (fun i -> 
-      let start_x = (chunksize_x * i) + 1 in 
+      let start_x = chunksize_x * i in 
       for x = start_x to (start_x + chunksize_x - 1) do 
         for y = 0 to (out_height - 1) do 
           Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists tot_dists));
