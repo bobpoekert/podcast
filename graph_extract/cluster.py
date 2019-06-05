@@ -3,8 +3,6 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.decomposition import TruncatedSVD
 import sklearn.cluster as cl
-import sys
-from numba import jit
 import os
 import threading
 from multiprocessing import cpu_count
