@@ -33,7 +33,7 @@ let process_pages infname agg =
   fold_lines (reducer_catchall process_page) agg (xunzip infname)
 
 let rss_url soundcloud_id = 
-  clean_url (Printf.sprintf "http://feeds.soundcloud.com/users/soundcloud:users:%d/sounds.rss" soundcloud_id)
+  clean_url (Printf.sprintf "http://feeds.soundcloud.com/playlists/soundcloud:playlists:%d/sounds.rss" soundcloud_id)
 
 let hash_pairs base_dirname = 
   let fnames = find_glob base_dirname "*.jsons.xz" in 
