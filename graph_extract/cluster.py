@@ -86,3 +86,13 @@ print(labels.shape)
 assert labels.shape == keys.shape
 
 np.concatenate([keys, labels]).astype(np.int64).tofile('cluster_ids.npy')
+
+centers = clusterer.cluster_centers_
+
+distances = np.zeros((centers.shape[0], centers.shape[0]))
+
+for idx in range(centers.shape[0]):
+    center = centers[idx]
+    distances[idx] = np.sqrt(np.sum((center - centers)**2))
+
+distances.astype(np.float64).tofile('pairwise_clusters.bin')

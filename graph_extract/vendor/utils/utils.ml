@@ -308,7 +308,7 @@ let argfilter thunk arr =
   let alen = Array.length arr in 
   let res = Array.make alen 0 in 
   let off = ref 0 in 
-  for i = 0 to alen do 
+  for i = 0 to (alen - 1) do 
     if (thunk (Array.get arr i)) then (
       Array.set res !off i;
       incr off;
@@ -327,13 +327,13 @@ let get_indexes_inplace arr idxes =
   Array.blit res 0 arr 0 (Array.length arr); ()
 
 let array2_slice_rows arr idxes = 
-  let width = Array2.dim2 arr in 
-  let height = Array.length idxes in 
-  let res = Array2.create (Array2.kind arr) (Array2.layout arr) width height in (
-    for idx_i = 0 to (height - 1) do 
-      let y = Array.get idxes idx_i in 
-      for x = 0 to (width - 1) do 
-        Array2.set res x y (Array2.get arr x y)
+  let cols = Array2.dim2 arr in 
+  let rows = Array.length idxes in 
+  let res = Array2.create (Array2.kind arr) (Array2.layout arr) rows cols in (
+    for idx_i = 0 to (rows - 1) do 
+      let row = Array.get idxes idx_i in 
+      for col = 0 to (cols - 1) do 
+        Array2.set res idx_i col (Array2.get arr row col)
       done;
     done;
     res

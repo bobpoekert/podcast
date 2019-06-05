@@ -2,7 +2,7 @@ from sklearn.manifold import TSNE
 import numpy as np
 from math import sqrt
 
-mat = np.fromfile('pairwise_clusters.bin', dtype=np.int64)
+mat = np.fromfile('pairwise_clusters.bin')
 n_clusters = int(sqrt(mat.shape[0]))
 print(n_clusters)
 mat = mat.reshape((n_clusters, n_clusters))
