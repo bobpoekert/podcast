@@ -3,8 +3,6 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.decomposition import TruncatedSVD
 import sklearn.cluster as cl
-import sys
-from numba import jit
 import os
 import threading
 from multiprocessing import cpu_count
@@ -62,7 +60,7 @@ print('embedded')
 #ms.fit(eigenvecs)
 
 n_clusters = 1024
-clusterer = cl.MiniBatchKMeans(n_clusters=1024, batch_size=5000)
+clusterer = cl.MiniBatchKMeans(n_clusters=n_clusters, batch_size=5000)
 
 workers = []
 n_workers = cpu_count()

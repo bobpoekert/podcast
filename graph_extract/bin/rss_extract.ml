@@ -172,6 +172,39 @@ let load_tree fname : tree array =
     (tree, Art.sum tree)
   ) data
 
+type token_ids = (Art.tree * int ref)
+
+let make_token_ids () = (Art.create (), ref 0)
+
+let give_token_id (ids:token_ids) token = 
+  let tree, ctr = ids in 
+  try
+    (Art.get tree token)
+  with Not_found -> 
+    let ctrv = !ctr in
+    let _ = incr ctr in 
+    let _ = Art.put tree token ctrv in 
+    ctrv
+
+let get_token_id (ids:token_ids) token = 
+  let tree, _ = ids in 
+  Art.get tree token
+
+let give_token_ids (ids:token_ids) (trees:tree array) = 
+  Array.iter (fun (tt, _) ->
+    Art.iter tt (fun k _v -> 
+      let _ = give_token_id ids k in ()
+    )
+  ) trees
+
+let write_token_ids (ids, _) outfname =   
+  with_out outfname (fun fd -> 
+    Art.iter ids (fun k v -> 
+      output_string fd k;
+      output_string fd "\t";
+      output_string fd (string_of_int v);
+    );
+  ); ()
 
 let tree_similarity a b =
   let a, a_sum = a in
@@ -278,8 +311,26 @@ let generate_page_vecs outfname infnames trees =
   ) parts in 
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids; ()
 
+let generate_page_bows infnames token_ids outfname = 
+  parparts infnames (fun i part -> 
+    let outf = open_out (Printf.sprintf "%s.%d" outfname i) in 
+    Array.iter (fun xml_fname -> 
+      iter_xml_pages xml_fname (fun (_req: Warc.warc_entry) (headers: Warc.header) _head xml ->
+        let meta_text, meta_sum = List.filter (fun s -> (String.length s) < 25) (
+          List.concat (List.map tokenize_text (channel_meta_text xml))
+        ) |> into_tree in 
+        let meta_sum = float_of_int meta_sum in 
+        let id = url_hash (Warc.get_url headers) |> Int64.of_int in 
+        Art.iter meta_text (fun token cnt -> 
+          output_string outf (pack_int64 id);
+          output_string outf (pack_int64 (Int64.of_int (get_token_id token_ids token)));
+          output_string outf (pack_float32 ((float_of_int cnt) /. meta_sum))
+        );
+      );
+    ) part;
+  )
 
-let process_pages fnames clusters_fname outfname _pairwise_outfname _vecs_outfname = 
+let process_pages fnames clusters_fname outfname pairwise_outfname bows_outfname = 
   let clusters = load_cluster_ids clusters_fname in 
   let _cluster_hashes, cluster_ids = clusters in 
   let distinct_cluster_ids = Hashtbl.create 1024 in 
@@ -297,11 +348,15 @@ let process_pages fnames clusters_fname outfname _pairwise_outfname _vecs_outfna
   done;
   let res = parmap fnames (word_histogram_worker clusters hists) word_histogram_reducer hists in 
   let res = array_filteri (fun _i v -> (Art.length v) > 1) res in 
-  (*let res_trees = Array.map (fun t -> (t, Art.sum t)) res in *)
+  let res_trees = Array.map (fun t -> (t, Art.sum t)) res in 
+  let token_ids = make_token_ids () in 
   let out = open_out outfname in
   Marshal.to_channel out (Array.map Art.items res) [];
   close_out out;
-  (* pairwise_tree_similarities_to_file pairwise_outfname res_trees; *)
+  give_token_ids token_ids res_trees;
+  write_token_ids token_ids (Printf.sprintf "%s.txt" bows_outfname);
+  pairwise_tree_similarities_to_file pairwise_outfname res_trees;
+  generate_page_bows fnames token_ids bows_outfname;
   (*generate_page_vecs vecs_outfname fnames res_trees;*) ()
 
 let () = 

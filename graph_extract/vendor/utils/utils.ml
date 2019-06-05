@@ -116,6 +116,10 @@ let with_out infname f =
   let fd = open_out infname in 
   try_finalize (fun () -> f fd) (fun () -> close_out fd)
 
+let with_in infname f = 
+  let fd = open_in infname in 
+  try_finalize (fun () -> f fd) (fun () -> close_in fd)
+
 let load_genarray fname dtype = 
   let size_bytes = (Unix.stat fname).st_size in 
   let item_size = Bigarray.kind_size_in_bytes dtype in 
@@ -286,7 +290,18 @@ let parrun thunk =
   let pids = maprange (fun i -> 
     let pid = Unix.fork () in 
     if pid == 0 then 
-      (with_exit (fun () -> thunk i; ); 1)
+      (with_exit (fun () -> thunk i; ))
+    else pid
+  ) ncores in
+  Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids
+
+let parparts inp thunk = 
+  let ncores = corecount () in 
+  let parts = partition ncores inp in 
+  let pids = maprange (fun i -> 
+    let pid = Unix.fork () in 
+    if pid == 0 then 
+      (with_exit (fun () -> (thunk i (Array.get parts i))))
     else pid
   ) ncores in
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids
