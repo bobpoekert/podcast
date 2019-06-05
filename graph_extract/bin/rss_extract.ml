@@ -184,6 +184,15 @@ let give_token_ids (ids:token_ids) (trees:tree array) =
     )
   ) trees
 
+let write_token_ids (ids, _) outfname =   
+  with_out outfname (fun fd -> 
+    Art.iter ids (fun k v -> 
+      output_string fd k;
+      output_string fd "\t";
+      output_string fd (string_of_int v);
+    );
+  ); ()
+
 let tree_similarity a b =
   let a, a_sum = a in
   let b, b_sum = b in 
@@ -332,6 +341,7 @@ let process_pages fnames clusters_fname outfname pairwise_outfname bows_outfname
   Marshal.to_channel out (Array.map Art.items res) [];
   close_out out;
   give_token_ids token_ids res_trees;
+  write_token_ids token_ids (Printf.sprintf "%s.txt" bows_outfname);
   pairwise_tree_similarities_to_file pairwise_outfname res_trees;
   generate_page_bows fnames token_ids bows_outfname;
   (*generate_page_vecs vecs_outfname fnames res_trees;*) ()

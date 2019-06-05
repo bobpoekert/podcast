@@ -60,7 +60,7 @@ print('embedded')
 #ms.fit(eigenvecs)
 
 n_clusters = 1024
-clusterer = cl.MiniBatchKMeans(n_clusters=1024, batch_size=5000)
+clusterer = cl.MiniBatchKMeans(n_clusters=n_clusters, batch_size=5000)
 
 workers = []
 n_workers = cpu_count()

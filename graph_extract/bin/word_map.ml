@@ -187,8 +187,8 @@ let load_bow_clusters fname =
 
 let make_bow_clusters_overall clusters = 
   let res = Array.make (Array2.dim2 clusters) 0.0 in 
-  let _ = for i = 0 to (Array2.dim1 clusters) do 
-    for j = 0 to (Array2.dim2 clusters) do 
+  let _ = for i = 0 to ((Array2.dim1 clusters) - 1) do 
+    for j = 0 to ((Array2.dim2 clusters) - 1) do 
       Array.set res j ((Array.get res j) +. (Array2.get clusters i j));
     done;
   done in res
