@@ -66,7 +66,15 @@ let rec _xml_text res node =
 
 let xml_text node = _xml_text [] node
 
-let splitter_re = Re.Pcre.regexp "[^a-zA-Z0-9]+"
+let splitter_re = Re.Pcre.regexp "[^a-zA-Z0-9/]+"
+
+let number_re = Re.Pcre.regexp "[0-9]"
+
+
+let is_good_token t = 
+  not (((String.length t) >= 15) ||
+      (String.contains t '/') || 
+      (Re.execp number_re t))
 
 let rec _clean_tokens tokens res =
   match tokens with
@@ -78,10 +86,15 @@ let rec _clean_tokens tokens res =
 
 let clean_tokens tokens = _clean_tokens tokens []
 
+let bigrams unigrams = 
+  try
+    List.append unigrams (snd (List.fold_left (fun (prev, res) v -> (v, (Printf.sprintf "%s %s" v prev) :: res)) ((List.hd unigrams), []) (List.tl unigrams)))
+  with Failure _ -> []
+
 let tokenize_text (inp : text_value) = 
   match inp with
   | Tag(v) -> [v]
-  | Text(v) -> clean_tokens (Re.split_full splitter_re v)
+  | Text(v) -> (Re.split_full splitter_re v) |> clean_tokens |> List.filter is_good_token
 
 let unwrap_text_value (inp : text_value) = 
   match inp with
@@ -266,7 +279,7 @@ let generate_page_vecs outfname infnames trees =
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids; ()
 
 
-let process_pages fnames clusters_fname outfname pairwise_outfname _vecs_outfname = 
+let process_pages fnames clusters_fname outfname _pairwise_outfname _vecs_outfname = 
   let clusters = load_cluster_ids clusters_fname in 
   let _cluster_hashes, cluster_ids = clusters in 
   let distinct_cluster_ids = Hashtbl.create 1024 in 
@@ -284,11 +297,11 @@ let process_pages fnames clusters_fname outfname pairwise_outfname _vecs_outfnam
   done;
   let res = parmap fnames (word_histogram_worker clusters hists) word_histogram_reducer hists in 
   let res = array_filteri (fun _i v -> (Art.length v) > 1) res in 
-  let res_trees = Array.map (fun t -> (t, Art.sum t)) res in 
+  (*let res_trees = Array.map (fun t -> (t, Art.sum t)) res in *)
   let out = open_out outfname in
   Marshal.to_channel out (Array.map Art.items res) [];
   close_out out;
-  pairwise_tree_similarities_to_file pairwise_outfname res_trees;
+  (* pairwise_tree_similarities_to_file pairwise_outfname res_trees; *)
   (*generate_page_vecs vecs_outfname fnames res_trees;*) ()
 
 let () = 

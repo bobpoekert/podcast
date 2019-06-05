@@ -26,12 +26,12 @@ let make_dist_array (big_tree, big_sum) n_res p_dist dist =
   let res_probs = Array.make list_len 0.0 in 
   let res_size = List.fold_left (fun i (k, v) -> 
     let k_hash = Murmur.murmur_hash k in 
-    let prob = (float_of_int v) /. total in 
+    let prob = (float_of_int v) /. (total /. 8.0) in 
     let tot_prob = (float_of_int (Art.get big_tree k)) /. big_sum in 
     let cond_prob = (prob *. p_dist) /. tot_prob in 
-    assert (tot_prob >= 0.0 && tot_prob <= 1.0);
+    (*assert (tot_prob >= 0.0 && tot_prob <= 1.0);
     assert (prob >= 0.0 && prob <= 1.0);
-    assert (tot_prob >= 0.0 && tot_prob <= 1.0);
+    assert (tot_prob >= 0.0 && tot_prob <= 1.0); *)
     if cond_prob > 0.0001 then (
         Array.set res_keys i k_hash;
         Array.set res_probs i cond_prob;
@@ -199,11 +199,11 @@ let scalers arr target_x target_y =
 
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
   let dists = load_marshal dists_fname in 
-  let n_dists = Array.length dists in 
-  let dists = Array.map (fun terms -> List.filter (fun (_k, count) -> count > 10) terms) dists in
+  let _n_dists = Array.length dists in 
+  let dists = Array.map (fun terms -> List.filter (fun (_k, count) -> count > 100) terms) dists in
   let dists_idxes = argfilter (fun l -> (List.length l) > 0) dists in 
   let dists = Array.map (Array.get dists) dists_idxes in 
-  let dists_2d = load_array2 fname_2d Float32 n_dists in
+  let dists_2d = load_array2 fname_2d Float32 1024 in
   let dists_2d = array2_slice_rows dists_2d dists_idxes in 
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in 

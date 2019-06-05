@@ -24,7 +24,7 @@ cluster_ids.npy: graph.bin
 
 cluster_dists.bin pairwise_clusters.bin: cluster_ids.npy rss_extract.exe
 	touch cluster_dists.bin
-	./rss_extract.exe cluster_ids.npy cluster_dists.bin pairwise_clusters.bin cluster_vecs.bin `ls /mnt/lappy/rss_warc/*.warc.gz`
+	./rss_extract.exe cluster_ids.npy cluster_dists.bin _pairwise_clusters.bin cluster_vecs.bin `ls /mnt/lappy/rss_warc/*.warc.gz`
 
 clusters_2d.bin: pairwise_clusters.bin
 	python3 mds.py
