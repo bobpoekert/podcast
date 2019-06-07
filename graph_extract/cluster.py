@@ -3,8 +3,6 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.decomposition import TruncatedSVD
 import sklearn.cluster as cl
-import sys
-from numba import jit
 import os
 import threading
 from multiprocessing import cpu_count
@@ -31,10 +29,6 @@ ids_right = np.searchsorted(keys, inp[:, 1])
 
 print('sorted')
 
-#sample_size = 100000
-#sample_idxes = np.random.choice(id_left.shape[0], sample_size, replace=False)
-
-#sample_mat = csr_matrix((vals[sample_idxes], (ids_left[sample_idxes], ids_right[sample_idxes])), shape=(sample_size, sample_size))
 affinity_mat = csr_matrix((vals, (ids_left, ids_right)), shape=(keys.shape[0], keys.shape[0]))
 
 assert affinity_mat.shape[0] == keys.shape[0]
@@ -56,13 +50,8 @@ assert eigenvecs.shape[0] == keys.shape[0]
 
 print('embedded')
 
-#bandwidth = cl.estimate_bandwidth(eigenvecs, n_samples=10000, n_jobs=-1)
-
-#ms = cl.MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=-1)
-#ms.fit(eigenvecs)
-
 n_clusters = 1024
-clusterer = cl.MiniBatchKMeans(n_clusters=1024, batch_size=5000)
+clusterer = cl.MiniBatchKMeans(n_clusters=n_clusters, batch_size=5000)
 
 workers = []
 n_workers = cpu_count()
@@ -84,6 +73,11 @@ labels = clusterer.predict(eigenvecs)
 
 print(labels.shape)
 assert labels.shape == keys.shape
+
+sort_idxes = np.argsort(keys)
+
+keys = keys[sort_idxes]
+labels = labels[sort_idxes]
 
 np.concatenate([keys, labels]).astype(np.int64).tofile('cluster_ids.npy')
 
