@@ -203,6 +203,7 @@ let write_token_ids (ids, _) outfname =
       output_string fd k;
       output_string fd "\t";
       output_string fd (string_of_int v);
+      output_string fd "\n";
     );
   ); ()
 
@@ -267,22 +268,34 @@ let word_histogram_reducer res hists =
   done);
   res
 
-let pack_i32 v = 
-  let l = Int32.to_int v in 
-  let r = Int32.to_int (Int32.shift_right_logical v 24) in
-  let res = Bytes.make 4 ' ' in 
-  Bytes.set res 0 (Char.unsafe_chr (l land 0xFF));
-  Bytes.set res 1 (Char.unsafe_chr ((l lsr 8) land 0xFF));
-  Bytes.set res 2 (Char.unsafe_chr ((l lsr 16) land 0xFF));
-  Bytes.set res 3 (Char.unsafe_chr (r land 0xFF));
-  Bytes.to_string res
+external set32_prim : bytes -> int -> int32 -> unit = "%caml_bytes_set32"
+external set64_prim : bytes -> int -> int64 -> unit = "%caml_bytes_set64"
+
+let pack_int32 v = 
+  let res = Bytes.create 4 in (
+    Bytes.set res 0 (Char.chr (Int32.to_int v));
+    Bytes.set res 1 (Char.chr (Int32.to_int (Int32.shift_right_logical v 8)));
+    Bytes.set res 2 (Char.chr (Int32.to_int (Int32.shift_right_logical v 16)));
+    Bytes.set res 3 (Char.chr (Int32.to_int (Int32.shift_right_logical v 24)));
+    Bytes.to_string res
+  )
 
 let pack_float32 v = 
   let bits = Int32.bits_of_float v in 
-  pack_i32 bits
+  pack_int32 bits
 
-let pack_int64 v =
-  (pack_i32 (Int64.to_int32 v)) ^ (pack_i32 (Int64.to_int32 (Int64.shift_right_logical v 32)))
+let pack_int64 v = 
+  let res = Bytes.create 8 in (
+    Bytes.set res 0 (Char.chr (Int64.to_int v));
+    Bytes.set res 1 (Char.chr (Int64.to_int (Int64.shift_right_logical v 8)));
+    Bytes.set res 2 (Char.chr (Int64.to_int (Int64.shift_right_logical v 16)));
+    Bytes.set res 3 (Char.chr (Int64.to_int (Int64.shift_right_logical v 24)));
+    Bytes.set res 4 (Char.chr (Int64.to_int (Int64.shift_right_logical v 32)));
+    Bytes.set res 5 (Char.chr (Int64.to_int (Int64.shift_right_logical v 40)));
+    Bytes.set res 6 (Char.chr (Int64.to_int (Int64.shift_right_logical v 48)));
+    Bytes.set res 7 (Char.chr (Int64.to_int (Int64.shift_right_logical v 56)));
+    Bytes.to_string res
+  )
 
 let generate_page_vecs outfname infnames trees = 
   let ncores = (Corecount.count () |> Nativeint.to_int) in 
@@ -311,24 +324,32 @@ let generate_page_vecs outfname infnames trees =
   ) parts in 
   Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids; ()
 
+let into_dict vs = 
+  let res = Hashtbl.create (List.length vs) in 
+  let _ = List.iter (fun v -> let _ = (try Hashtbl.replace res v ((Hashtbl.find res v) + 1) with Not_found -> Hashtbl.replace res v 1) in ()) vs in 
+  res
+
 let generate_page_bows infnames token_ids outfname = 
   parparts infnames (fun i part -> 
-    let outf = open_out (Printf.sprintf "%s.%d" outfname i) in 
+    with_out (Printf.sprintf "%s.%d" outfname i) (fun outf ->
     Array.iter (fun xml_fname -> 
       iter_xml_pages xml_fname (fun (_req: Warc.warc_entry) (headers: Warc.header) _head xml ->
         let meta_text, meta_sum = List.filter (fun s -> (String.length s) < 25) (
           List.concat (List.map tokenize_text (channel_meta_text xml))
         ) |> into_tree in 
-        let meta_sum = float_of_int meta_sum in 
-        let id = url_hash (Warc.get_url headers) |> Int64.of_int in 
-        Art.iter meta_text (fun token cnt -> 
-          output_string outf (pack_int64 id);
-          output_string outf (pack_int64 (Int64.of_int (get_token_id token_ids token)));
-          output_string outf (pack_float32 ((float_of_int cnt) /. meta_sum))
+        if meta_sum > 100 then (
+            let meta_sum = float_of_int meta_sum in 
+            let id = url_hash (Warc.get_url headers) |> Int64.of_int in 
+            Art.iter meta_text (fun token cnt -> 
+              output_string outf (pack_int64 id);
+              output_string outf (pack_int64 (Int64.of_int (get_token_id token_ids token)));
+              output_string outf (pack_float32 ((float_of_int cnt) /. meta_sum));
+            );
         );
       );
     ) part;
   )
+)
 
 let process_pages fnames clusters_fname outfname pairwise_outfname bows_outfname = 
   let clusters = load_cluster_ids clusters_fname in 

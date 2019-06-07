@@ -20,7 +20,7 @@ graph.bin: graph_extract.exe
 	./graph_extract.exe /mnt/lappy/itunes/ /mnt/lappy/soundcloud /mnt/lappy/podbean /mnt/tiny/podbean urls.txt graph.bin
 
 cluster_ids.npy: graph.bin
-	OPENBLAS_NUM_THREADS=1 python3 cluster.py
+	python3 cluster.py
 
 cluster_dists.bin pairwise_clusters.bin: cluster_ids.npy rss_extract.exe
 	touch cluster_dists.bin

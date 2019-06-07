@@ -3,13 +3,14 @@ import sklearn.cluster as cl
 from scipy.sparse import csr_matrix
 import sys
 import threading
+import traceback
 
 raw_regular_clusters = np.fromfile('cluster_ids.npy', dtype=np.int64)
 n_rows = int(raw_regular_clusters.shape[0] / 2)
 regular_clusters = np.transpose([raw_regular_clusters[:n_rows], raw_regular_clusters[n_rows:]])
 
 
-mat_type = np.dtype([('doc_id', np.int64), ('word_id', np.int64), ('prob', np.float32)])
+mat_type = np.dtype([('doc_id', '<i8'), ('word_id', '<i8'), ('prob', np.float32)])
 
 
 def load_mat(fname):
@@ -20,8 +21,17 @@ infnames = sys.argv[1:]
 
 raw_mats = [np.fromfile(fname, dtype=mat_type) for fname in infnames]
 uniq_doc_ids = np.unique(np.concatenate([v['doc_id'] for v in raw_mats]))
-mats = [csr_matrix((m['prob'], (np.searchsorted(uniq_doc_ids, m['doc_id']), m['word_id']))) for m in raw_mats]
+print(uniq_doc_ids.shape)
+mats = []
+for m in raw_mats:
+    try:
+        mats.append(csr_matrix((m['prob'], (np.searchsorted(uniq_doc_ids, m['doc_id']), m['word_id']))))
+        print(np.amin(m['word_id']), np.amax(m['doc_id']), np.amin(m['prob']), np.amax(m['prob']))
+    except ValueError:
+        traceback.print_exc()
+        pass
 
+print(len(mats))
 
 n_clusters = 4096
 
@@ -29,8 +39,14 @@ clusterer = cl.MiniBatchKMeans(n_clusters=n_clusters, batch_size=5000)
 
 workers = []
 
+def fit_cl(mat):
+    try:
+        clusterer.partial_fit(mat)
+    except:
+        traceback.print_exc()
+
 for mat in mats:
-    thread = threading.Thread(target=clusterer.partial_fit, args=(mat,))
+    thread = threading.Thread(target=fit_cl, args=(mat,))
     thread.daemon = True
     thread.start()
     workers.append(thread)
@@ -44,10 +60,14 @@ workers = []
 def get_cluster_ids(mat):
     doc_ids, _ = mat.nonzero()
     uniq_doc_idxes = np.concatenate([(True,), (doc_ids[:-1] != doc_ids[1:])])
+    print(uniq_doc_ids.shape)
     uniq_doc_ids = doc_ids[uniq_doc_idxes]
-    cluster_ids = clusterer.transform(mat)
-    assert uniq_doc_ids.shape == cluster_ids.shape
-    cluster_results.append((uniq_doc_ids, cluster_ids))
+    try:
+        cluster_ids = clusterer.transform(mat)
+        assert uniq_doc_ids.shape == cluster_ids.shape
+        cluster_results.append((uniq_doc_ids, cluster_ids))
+    except:
+        traceback.print_exc()
 
 for mat in mats:
     thread = threading.Thread(target=get_cluster_ids, args=(mat,))

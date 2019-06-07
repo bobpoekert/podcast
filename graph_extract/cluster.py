@@ -63,7 +63,7 @@ n_clusters = 1024
 clusterer = cl.MiniBatchKMeans(n_clusters=n_clusters, batch_size=5000)
 
 workers = []
-n_workers = cpu_count()
+n_workers = cpu_count() / 4
 partition_size = int(eigenvecs.shape[0] / n_workers)
 partition_size -= partition_size % n_clusters
 
