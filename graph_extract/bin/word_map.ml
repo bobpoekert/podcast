@@ -118,6 +118,37 @@ let tree_to_arrays (tree, tree_sum) =
 
 let k_neighbors = 5
 
+type word_prob = (int * float)
+module WordProbCompare = struct
+  type t = word_prob
+  let compare (a:word_prob) (b:word_prob) = compare (snd a) (snd b)
+end
+
+module WordHeap = BatHeap.Make(WordProbCompare)
+type word_heap = WordHeap.t
+
+let k_insert heap v k = 
+  let heap = WordHeap.insert heap v in 
+  let size = WordHeap.size heap in 
+  if size > k then 
+    WordHeap.del_min heap 
+  else 
+    heap
+
+let heap_to_arrays (heap:word_heap) =
+  let size = WordHeap.size heap in 
+  let ks = Array.make size 0 in 
+  let vs = Array.make size 0.0 in (
+    BatEnum.iteri (fun idx (k, v) -> 
+      Array.set ks idx k;
+      Array.set vs idx v;
+    ) (WordHeap.enum heap);
+    (ks, vs)
+  )
+
+
+let max_res_words = 100
+
 let calc_point x y dists_2d dists_arrays  = 
   let n_dists = Array2.dim1 dists_2d in 
   let weights = Array.make n_dists 0.0 in (
@@ -139,21 +170,21 @@ let calc_point x y dists_2d dists_arrays  =
       Array.set weights i ((Array.get weights i) /. weight_sum);
     done in 
 
-    try (
-        let _score, k = fold_pair_arrays (fun (res_score, res_k) k probs idxes -> 
-          let score = ref 0.0 in 
-          let n_res = Array.length probs in (
-            for i = 0 to n_res - 1 do 
-              let idx = Array.get idxes i in 
-              let weight = Array.get top_k_weights idx in 
-              let prob = Array.get probs i in 
-              score := !score +. (prob /. weight)
-            done;
-            let score = !score in 
-            if score >= res_score then (score, k) else (res_score, res_k)
-          )
-        ) top_k_dists (0.0, 0) in k
-    ) with Invalid_argument(_) -> 0
+    let heap = fold_pair_arrays (fun res k probs idxes -> 
+      let score = ref 0.0 in 
+      let n_res = Array.length probs in (
+        for i = 0 to n_res - 1 do 
+          let idx = Array.get idxes i in 
+          let weight = Array.get top_k_weights idx in 
+          let prob = Array.get probs i in 
+          score := !score +. (prob /. weight)
+        done;
+        let score = !score in 
+        k_insert res (k, score) 100
+      )
+    ) top_k_dists WordHeap.empty in
+    heap_to_arrays heap
+
   )
 
 let point_scaler min max target = 
@@ -197,6 +228,13 @@ let scalers arr target_x target_y =
   let _ = print_endline "" in 
   (point_scaler min_x max_x target_x, point_scaler min_y max_y target_y)
 
+let set_array_pairs out x y (ks, vs) = 
+  let n_items = Array.length ks in 
+  for i = 0 to (n_items - 1) do 
+    Genarray.set out [| x; y; i; 0 |] (Int64.of_int (Array.get ks i));
+    Genarray.set out [| x; y; i; 1 |] (Int64.bits_of_float (Array.get vs i));
+  done
+
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
   let dists = load_marshal dists_fname in 
   let _n_dists = Array.length dists in 
@@ -214,14 +252,13 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let dists_arrays = Array.map (make_dist_array big_tree 10000 p_dist) dists in 
   let _ = Array.iter (fun (k, _v) -> Printf.printf "%d " (Array.length k)) dists_arrays in
   let _ = print_endline "" in 
-  array2_with_file outfname Int64 out_width out_height (fun out -> 
+  genarray_with_file outfname Int64 [| out_width; out_height; max_res_words; 2 |] (fun out -> 
     parrun (fun i -> 
       let start_x = chunksize_x * i in 
       for x = start_x to (start_x + chunksize_x - 1) do 
         for y = 0 to (out_height - 1) do 
-          Array2.set out x y (Int64.of_int (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays));
-          (* Printf.printf "%d %d" x y;
-          print_endline "" *)
+          let res = (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays) in 
+          set_array_pairs out x y res
         done
       done
     )

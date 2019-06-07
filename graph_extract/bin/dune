@@ -11,7 +11,7 @@
 (executable
     (name word_map)
     (modules word_map)
-    (libraries murmur art corecount utils))
+    (libraries murmur art corecount utils batteries))
 
 (executable
     (name extract_words)
