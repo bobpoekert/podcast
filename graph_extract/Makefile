@@ -28,12 +28,15 @@ cluster_dists.bin pairwise_clusters.bin: cluster_ids.npy rss_extract.exe
 
 clusters_2d.bin: pairwise_clusters.bin
 	python3 mds.py
- 
+
+width = 768
+height = 1024
+
 word_map.bin: cluster_dists.bin clusters_2d.bin word_map.exe
-	./word_map.exe cluster_dists.bin clusters_2d.bin 768 1024 word_map.bin 
+	./word_map.exe cluster_dists.bin clusters_2d.bin $(width) $(height) word_map.bin 
 
-words.txt: cluster_dists.bin extract_words.exe
-	sh -c './extract_words.exe cluster_dists.bin | hashuniq > words.txt'
+segment.so:
+	python3 setup.py build_ext --inplace
 
-map_words.txt: words.txt word_map.bin
-	sh -c 'python3 map_words.py 768 1024 > map_words.txt'
+segments.bin segment_dists.bin: word_map.bin segment.so
+	python3 word_segments.py word_map.bin $(width) $(height)

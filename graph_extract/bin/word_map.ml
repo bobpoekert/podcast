@@ -183,7 +183,9 @@ let calc_point x y dists_2d dists_arrays  =
         k_insert res (k, score) 100
       )
     ) top_k_dists WordHeap.empty in
-    heap_to_arrays heap
+    let ks, vs = heap_to_arrays heap in
+    let idxes = argsort ks in 
+    (get_indexes ks idxes, get_indexes vs idxes)
 
   )
 
@@ -234,6 +236,7 @@ let set_array_pairs out x y (ks, vs) =
     Genarray.set out [| x; y; i; 0 |] (Int64.of_int (Array.get ks i));
     Genarray.set out [| x; y; i; 1 |] (Int64.bits_of_float (Array.get vs i));
   done
+
 
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
   let dists = load_marshal dists_fname in 
