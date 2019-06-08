@@ -120,32 +120,41 @@ let with_in infname f =
   let fd = open_in infname in 
   try_finalize (fun () -> f fd) (fun () -> close_in fd)
 
-let load_genarray fname dtype = 
+let load_genarray fname dtype dims = 
+  let fd = Unix.openfile fname [] 0o640 in 
+  let arr = Unix.map_file fd dtype c_layout false dims in
+  arr
+
+let load_genarray1 fname dtype = 
   let size_bytes = (Unix.stat fname).st_size in 
   let item_size = Bigarray.kind_size_in_bytes dtype in 
   let n_items = size_bytes / item_size in 
-  let fd = Unix.openfile fname [] 0o640 in 
-  let arr = Unix.map_file fd dtype c_layout false [| n_items |] in
-  arr
+  load_genarray fname dtype [| n_items |]
 
-let load_array fname dtype = 
-  array1_of_genarray (load_genarray fname dtype)
+let load_array1 fname dtype = array1_of_genarray (load_genarray1 fname dtype)
 
 let load_array2 fname dtype width = 
-  let g = load_genarray fname dtype in 
+  let g = load_genarray1 fname dtype in 
   let size = Array.get (Genarray.dims g) 0 in 
   let height = size / width in 
   reshape g [| width; height |] |> array2_of_genarray
 
-let array2_with_file fname dtype dim1 dim2 thunk =
+let dims_size dims dtype = 
+  let elem_size = kind_size_in_bytes dtype in 
+  (Array.fold_left ( * ) 1 dims) * elem_size
+
+let genarray_with_file fname dtype dims thunk =
   let target_fd = Unix.openfile fname [Unix.O_RDWR; Unix.O_CREAT; Unix.O_APPEND] 0o640 in
-  let size_bytes = dim1 * dim2 * (kind_size_in_bytes dtype) in 
+  let size_bytes = dims_size dims dtype in 
   let _ = Unix.ftruncate target_fd size_bytes in 
-  let target = Unix.map_file target_fd dtype C_layout true [| dim1; dim2 |] in 
-  let res = Bigarray.array2_of_genarray target in
-  let v = thunk res in 
+  let target = Unix.map_file target_fd dtype C_layout true dims in 
+  let v = thunk target in 
   Unix.close target_fd;
   v
+let array2_with_file fname dtype dim1 dim2 thunk =
+  genarray_with_file fname dtype [| dim1; dim2 |] (fun v -> 
+    thunk (array2_of_genarray v)
+  )
 
 let rec _array_filteri thunk arr res res_off arr_off arr_len = 
   if arr_off >= arr_len then (Array.sub res 0 res_off) else (
