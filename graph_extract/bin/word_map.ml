@@ -157,11 +157,18 @@ let calc_point x y dists_2d dists_arrays  =
       let dist_y = Array2.get dists_2d i 1 in 
       Array.set weights i (distance x y dist_x dist_y);
     done in 
+    let top_k_dists = Array.make k_neighbors (Array.get dists_arrays 0) in 
+    let top_k_weights = Array.make k_neighbors 0.0 in 
+    let weight_idxes = argsort weights in 
+    let _ = for i = 0 to (k_neighbors - 1) do 
+      let widx = Array.get weight_idxes i in 
+      Array.set top_k_dists i (Array.get dists_arrays widx);
+      Array.set top_k_weights i (Array.get weights widx);
+    done in
     let weight_sum = Array.fold_left (+.) 0.0 weights in
     let _ = for i = 0 to (n_dists - 1) do 
       Array.set weights i ((Array.get weights i) /. weight_sum);
     done in 
-
     let heap = fold_pair_arrays (fun res k probs idxes -> 
       let score = ref 0.0 in 
       let n_res = Array.length probs in (
@@ -216,18 +223,6 @@ let bounds_array2 arr =
   if d < 0 then raise (Invalid_argument "empty array") else
   _bounds_array2 arr max_float min_float max_float min_float d 
 
-let load_bow_clusters fname = 
-  let width_fname = Printf.sprintf "%s_width.bin" fname in 
-  let width = with_in width_fname (fun fd -> input_binary_int fd) in 
-  load_array2 fname Float64 width
-
-let make_bow_clusters_overall clusters = 
-  let res = Array.make (Array2.dim2 clusters) 0.0 in 
-  let _ = for i = 0 to ((Array2.dim1 clusters) - 1) do 
-    for j = 0 to ((Array2.dim2 clusters) - 1) do 
-      Array.set res j ((Array.get res j) +. (Array2.get clusters i j));
-    done;
-  done in res
 
 let scalers arr target_x target_y = 
   let min_x, max_x, min_y, max_y = bounds_array2 arr in 
@@ -244,10 +239,15 @@ let set_array_pairs out x y (ks, vs) =
 
 
 let make_word_map dists_fname fname_2d outfname out_width out_height = 
-  let dists = load_bow_clusters dists_fname in 
-  let tot_dists = make_bow_clusters_overall dists in 
-  let n_dists = Array2.dim1 dists in 
+  let dists = load_marshal dists_fname in 
+  let n_dists = Array.length dists in 
+  let dists = Array.map (fun terms -> List.filter (fun (_k, count) -> count > 10) terms) dists in
+  let dists_idxes = argfilter (fun l -> (List.length l) > 0) dists in 
+  let dists = Array.map (Array.get dists) dists_idxes in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
+  let dists_2d = array2_slice_rows dists_2d dists_idxes in 
+  let big_tree = into_big_tree dists in 
+  let big_tree = (big_tree, Art.sum big_tree) in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in
