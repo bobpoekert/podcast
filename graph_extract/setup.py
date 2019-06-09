@@ -6,6 +6,12 @@ setup(
     name='_segment',
     ext_modules=cythonize(
         Extension(
+            "_ccomp",
+            sources=["_ccomp.pyx"],
+            include_dirs=[np.get_include()]
+        )
+    ) + cythonize(
+        Extension(
             "_segment",
             sources=["_segment.pyx"],
             include_dirs=[np.get_include()]

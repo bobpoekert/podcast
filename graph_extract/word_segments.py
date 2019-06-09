@@ -11,20 +11,31 @@ struct_mat = np.fromfile(sys.argv[1], dtype=mat_dtype).reshape((width, height, -
 ks_mat = struct_mat['ks']
 vs_mat = struct_mat['vs']
 
-segmentation = segment._felzenszwalb_cython(ks_mat, vs_mat, min_size=5)
+segmentation = segment.segment(ks_mat, vs_mat, scale=200, min_size=10, sigma=0)
+print(segmentation.shape)
 segmentation.astype(np.int32).tofile(sys.argv[4])
 
-segment_ids = np.unique(segmentation)
+if False:
+    segment_ids = np.unique(segmentation)
 
-segment_word_dists = np.zeros((segment_ids.shape[0], ks_mat.shape[-1]))
+    print(ks_mat.shape, segmentation.shape)
 
-for segment_id in segment_ids:
-    mask = (segmentation == segment_id)
-    xs, ys = np.nonzero(mask)
-    ks = ks_mat[xs, ys, :]
-    vs = vs_mat[xs, ys, :]
-    ks_uniq = np.unique(ks)
-    for i, k in enumerate(ks_uniq):
-        segment_word_dists[segment_id, i] = np.sum(vs[ks == k])
+    segment_word_dists = np.zeros((segment_ids.shape[0], ks_mat.shape[-1]))
+    print(segment_word_dists.shape)
+    print(segment_ids.shape)
 
-segment_word_dists.astype(np.float64).tofile(sys.argv[5])
+    for segment_idx, segment_id in enumerate(segment_ids):
+        mask = (segmentation == segment_id)
+        xs, ys = np.nonzero(mask)
+        ks = ks_mat[ys, xs, :]
+        vs = vs_mat[ys, xs, :]
+        ks_uniq = np.unique(ks)
+        local_dist = np.zeros(ks_uniq.shape)
+        for idx, k in enumerate(ks_uniq):
+            local_dist[idx] = np.sum(vs[ks == k])
+        sort_idxes = np.argsort(local_dist)
+        top_100 = sort_idxes[-100:]
+        top_ks = ks_uniq[top_100]
+        segment_word_dists[segment_idx, :(top_ks.shape[0])] = top_ks
+
+        segment_word_dists.astype(np.float64).tofile(sys.argv[5])

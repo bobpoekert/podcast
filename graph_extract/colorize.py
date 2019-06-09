@@ -7,10 +7,9 @@ width = int(sys.argv[2])
 height = int(sys.argv[3])
 outfname = sys.argv[4]
 
-mat = np.fromfile(fname, dtype=np.int64).reshape((width, height))
+mat = np.fromfile(fname, dtype=np.int32).reshape((width, height))
 
 vals = np.unique(mat)
-vals = np.sort(vals)
 
 colors = np.random.randint(0, high=255, size=(vals.shape[0],), dtype=np.uint8)
 
