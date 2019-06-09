@@ -24,7 +24,7 @@ cluster_ids.npy: graph.bin
 
 cluster_dists.bin pairwise_clusters.bin: cluster_ids.npy rss_extract.exe
 	touch cluster_dists.bin
-	./rss_extract.exe cluster_ids.npy cluster_dists.bin _pairwise_clusters.bin bow_vecs.bin `ls /mnt/lappy/rss_warc/*.warc.gz`
+	./rss_extract.exe cluster_ids.npy cluster_dists.bin pairwise_clusters.bin bow_vecs.bin `ls /mnt/lappy/rss_warc/*.warc.gz`
 
 bow_clusters.bin: cluster_dists.bin 
 	sh -c 'python3 word_clusters.py `ls bow_vecs.bin*`'
@@ -39,7 +39,7 @@ word_map.bin: cluster_dists.bin clusters_2d.bin word_map.exe
 	./word_map.exe cluster_dists.bin clusters_2d.bin $(width) $(height) word_map.bin 
 
 segment.so:
-	python3 setup.py build_ext --inplace
+	PYTHONPATH="`pwd`/vendor" python3 setup.py build_ext --inplace
 
 segments.bin segment_dists.bin: word_map.bin segment.so
 	python3 word_segments.py word_map.bin $(width) $(height)

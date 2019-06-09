@@ -3,7 +3,7 @@ open Bigarray
 open Utils
 
 let load_cluster_ids fname = 
-  let arr = load_array fname Int64 in 
+  let arr = load_array1 fname Int64 in 
   let len = Array1.dim arr in 
   let hashes = Array1.sub arr 0 (len / 2) in 
   let cluster_ids = Array1.sub arr (len / 2) (len / 2) in 
@@ -244,15 +244,17 @@ let words_vec hists words =
   Array.map (fun v -> (float_of_int v) /. total_sim) sims
 
 let iter_word_histograms cluster_ids word_hists fname =
-  iter_xml_pages fname (fun (_req : Warc.warc_entry) (headers : Warc.header) _head xml ->
-    try (
-        let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
-        let url = Warc.get_url headers in 
-        let cluster_id = url_cluster_id cluster_ids url in 
-        let cluster_hist = Array.get word_hists cluster_id in 
-        List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
-    ) with Not_found -> ()
-  ); ()
+  try (
+      iter_xml_pages fname (fun (_req : Warc.warc_entry) (headers : Warc.header) _head xml ->
+        try (
+            let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
+            let url = Warc.get_url headers in 
+            let cluster_id = url_cluster_id cluster_ids url in 
+            let cluster_hist = Array.get word_hists cluster_id in 
+            List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
+        ) with Not_found -> ()
+      );
+  ) with _ -> ()
 
 let word_histogram_worker cluster_ids word_hists fnames = 
   let _ = Array.iter (iter_word_histograms cluster_ids word_hists) fnames in 
@@ -334,17 +336,18 @@ let generate_page_bows infnames token_ids outfname =
     with_out (Printf.sprintf "%s.%d" outfname i) (fun outf ->
     Array.iter (fun xml_fname -> 
       iter_xml_pages xml_fname (fun (_req: Warc.warc_entry) (headers: Warc.header) _head xml ->
-        let meta_text, meta_sum = List.filter (fun s -> (String.length s) < 25) (
+        let meta_text = List.filter (fun s -> (String.length s) < 25) (
           List.concat (List.map tokenize_text (channel_meta_text xml))
-        ) |> into_tree in 
+        ) |> into_dict in 
+        let meta_sum = Hashtbl.fold (fun _ v a -> v + a) meta_text 0 in 
         if meta_sum > 100 then (
             let meta_sum = float_of_int meta_sum in 
             let id = url_hash (Warc.get_url headers) |> Int64.of_int in 
-            Art.iter meta_text (fun token cnt -> 
+            Hashtbl.iter (fun token cnt -> 
               output_string outf (pack_int64 id);
               output_string outf (pack_int64 (Int64.of_int (get_token_id token_ids token)));
               output_string outf (pack_float32 ((float_of_int cnt) /. meta_sum));
-            );
+            ) meta_text;
         );
       );
     ) part;
