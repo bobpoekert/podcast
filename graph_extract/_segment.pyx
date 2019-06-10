@@ -6,12 +6,10 @@ import numpy as np
 from scipy import ndimage as ndi
 
 cimport numpy as cnp
-from skimage.measure._ccomp cimport find_root, join_trees
+from _ccomp cimport find_root, join_trees
 
 from libc.stdint cimport *
 
-from skimage.util import img_as_float64
-from skimage._shared.utils import warn
 
 cdef compute_cost(
     cnp.ndarray[cnp.int64_t, ndim=3] a_keys, cnp.ndarray[cnp.float64_t, ndim=3] a_vs,
@@ -54,7 +52,11 @@ cdef compute_cost(
 
             while (idx_a < item_size) and (idx_b < item_size):
                 k_a = a_keys[x, y, idx_a]
+                if k_a == 0:
+                    break
                 k_b = b_keys[x, y, idx_b]
+                if k_b == 0:
+                    break
                 if k_a == k_b:
                     v_a = a_vs[x, y, idx_a]
                     v_b = b_vs[x, y, idx_b]
@@ -73,7 +75,9 @@ cdef compute_cost(
             y += 1
         x += 1
 
-    return res
+    print(res_idx)
+
+    return res[:res_idx] * 100
 
 
 
@@ -106,32 +110,33 @@ def _felzenszwalb_cython(image_ks, image_vs, double scale=1, sigma=0.8,
     inner_size = image_ks.shape[2]
     width = image_ks.shape[0]
     height = image_ks.shape[1]
+    size = width * height
 
     # compute edge weights in 8 connectivity:
     down_cost = compute_cost(
         image_ks[1:, :, :], image_vs[1:, :, :],
         image_ks[:-1, :, :], image_vs[:-1, :, :],
-        inner_size, np.zeros((image_ks.shape[0],))
+        inner_size, np.zeros((size,))
     )
     right_cost = compute_cost(
         image_ks[:, 1:, :], image_vs[:, 1:, :],
         image_ks[:, :-1, :], image_vs[:, :-1, :],
-        inner_size, np.zeros((image_ks.shape[1],))
+        inner_size, np.zeros((size,))
     )
     dright_cost = compute_cost(
         image_ks[1:, 1:, :], image_vs[1:, 1:, :],
         image_ks[:-1, :-1, :], image_vs[:-1, :-1, :],
-        inner_size, np.zeros((image_ks.shape[1],))
+        inner_size, np.zeros((size,))
     )
     uright_cost = compute_cost(
         image_ks[1:, :-1, :], image_vs[1:, :-1, :],
         image_ks[:-1, 1:, :], image_vs[:-1, 1:, :],
-        inner_size, np.zeros((image_ks.shape[1],))
+        inner_size, np.zeros((size,))
     )
 
     cdef cnp.ndarray[cnp.float_t, ndim=1] costs = np.hstack([
     	right_cost.ravel(), down_cost.ravel(), dright_cost.ravel(),
-        uright_cost.ravel()]).astype(np.float)
+        uright_cost.ravel()]).astype(np.float) * 2.0
 
     # compute edges between pixels:
     cdef cnp.ndarray[cnp.intp_t, ndim=2] segments \
@@ -142,6 +147,8 @@ def _felzenszwalb_cython(image_ks, image_vs, double scale=1, sigma=0.8,
     uright_edges = np.c_[segments[:height-1, 1:].ravel(), segments[1:, :width-1].ravel()]
     cdef cnp.ndarray[cnp.intp_t, ndim=2] edges \
             = np.vstack([right_edges, down_edges, dright_edges, uright_edges])
+
+    print(edges.shape[0], costs.shape[0], edges.shape[1], costs.shape[1])
 
     # initialize data structures for segment size
     # and inner cost, then start greedy iteration over edges.
