@@ -11,7 +11,7 @@ struct_mat = np.fromfile(sys.argv[1], dtype=mat_dtype).reshape((width, height, -
 ks_mat = struct_mat['ks']
 vs_mat = struct_mat['vs']
 
-segmentation = segment.segment(ks_mat, vs_mat, scale=200, min_size=10, sigma=0)
+segmentation = segment.segment(ks_mat, vs_mat, scale=5000, min_size=1, weight=1000, mean_kernel_size=(100,100))
 print(segmentation.shape)
 segmentation.astype(np.int32).tofile(sys.argv[4])
 
