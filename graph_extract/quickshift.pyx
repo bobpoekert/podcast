@@ -63,7 +63,7 @@ cdef inline double compute_cost(
             idx_b += 1
         elif k_a < k_b:
             v_a = a_vs[idx_a]
-            score += (v_a + v_a)
+            score += (v_a * v_a)
             idx_a += 1
         else:
             v_b = b_vs[idx_b]

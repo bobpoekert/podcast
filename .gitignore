@@ -5,3 +5,8 @@
 *.sqlite
 .ipynb_checkpoints/
 .merlin/
+.DS_Store
+*.so
+*.o
+*.a
+*.bin
