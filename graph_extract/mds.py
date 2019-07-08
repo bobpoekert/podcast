@@ -9,7 +9,10 @@ print(n_clusters)
 mat = mat.reshape((n_clusters, n_clusters))
 
 neighbors = np.argmin(mat, axis=1)
-adjacency = csr_matrix((np.full(neighbors.shape, -1), (np.arange(neighbors.shape[0]), neighbors)))
+adjacency = np.ones(mat.shape)
+rng = np.arange(neighbors.shape[0])
+adjacency[rng, neighbors] = 0
+adjacency[neighbors, rng] = 0
 
 model = MDS(dissimilarity='precomputed', n_jobs=-1)
 embedded = model.fit_transform(adjacency)
