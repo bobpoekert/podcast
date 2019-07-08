@@ -32,8 +32,8 @@ bow_clusters.bin: cluster_dists.bin
 clusters_2d.bin: pairwise_clusters.bin
 	python3 mds.py
 
-width = 768
-height = 1024
+width = 1200
+height = 1900
 
 word_map.bin: cluster_dists.bin clusters_2d.bin word_map.exe
 	./word_map.exe cluster_dists.bin clusters_2d.bin $(width) $(height) word_map.bin 
@@ -42,4 +42,4 @@ segment.so:
 	python3 setup.py build_ext --inplace
 
 segments.bin segment_dists.bin: word_map.bin segment.so
-	python3 word_segments.py word_map.bin $(width) $(height)
+	python3 word_segments.py word_map.bin $(width) $(height) segments.bin segment_dists.bin
