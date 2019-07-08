@@ -237,8 +237,22 @@ let set_array_pairs out x y (ks, vs) =
     Genarray.set out [| x; y; i; 1 |] (Int64.bits_of_float (Array.get vs i));
   done
 
+let topics_in_bbox dists_2d min_x min_y max_x max_y = 
+  let max_len = Array2.dim1 dists_2d in 
+  let res = Array.make max_len 0 in 
+  let rec populate_idxes res_idx inp_idx = 
+    if inp_idx >= max_len then res_idx else (
+      let v_x = Array2.get dists_2d inp_idx 0 in 
+      let v_y = Array2.get dists_2d inp_idx 1 in 
+      if v_x >= min_x && v_y >= min_y && v_x <= max_x && v_y <= max_y then (
+        Array.set res res_idx inp_idx;
+        populate_idxes (res_idx + 1) (inp_idx + 1)
+      ) else populate_idxes res_idx (inp_idx + 1)
+    ) in 
+  let res_len = populate_idxes 0 0 in 
+  Array.sub res 0 res_len
 
-let make_word_map dists_fname fname_2d outfname out_width out_height = 
+let make_word_map dists_fname fname_2d outfname out_width out_height min_x min_y max_x max_y is_parallel = 
   let dists = load_marshal dists_fname in 
   let n_dists = Array.length dists in 
   let dists = Array.map (fun terms -> List.filter (fun (_k, count) -> count > 10) terms) dists in
@@ -246,10 +260,13 @@ let make_word_map dists_fname fname_2d outfname out_width out_height =
   let dists = Array.map (Array.get dists) dists_idxes in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let dists_2d = array2_slice_rows dists_2d dists_idxes in 
+  let bbox_mask = topics_in_bbox dists_2d min_x min_y max_x max_y in 
+  let dists_2d = array2_slice_rows dists_2d bbox_mask in 
+  let dists = Array.map (fun idx -> Array.get dists idx) bbox_mask in 
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
-  let ncores = (Corecount.count () |> Nativeint.to_int) in
+  let ncores = if is_parallel then (Corecount.count () |> Nativeint.to_int) else 1 in
   let chunksize_x = out_width / ncores in
   let p_dist = 1.0 /. (float_of_int (Array.length dists)) in 
   let dists_arrays = Array.map (make_dist_array big_tree 10000 p_dist) dists in 
@@ -273,4 +290,9 @@ let () =
   let width = int_of_string (Array.get Sys.argv 3) in 
   let height = int_of_string (Array.get Sys.argv 4) in 
   let outfname = Array.get Sys.argv 5 in 
-  make_word_map dists_fname fname_2d outfname width height
+  let min_x = float_of_string (Array.get Sys.argv 6) in 
+  let min_y = float_of_string (Array.get Sys.argv 7) in 
+  let max_x = float_of_string (Array.get Sys.argv 8) in 
+  let max_y = float_of_string (Array.get Sys.argv 9) in 
+  let is_parallel = ((Array.get Sys.argv 10) = "true") in 
+  make_word_map dists_fname fname_2d outfname width height min_x min_y max_x max_y is_parallel

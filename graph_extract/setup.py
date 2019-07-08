@@ -16,6 +16,14 @@ setup(
             sources=["_segment.pyx"],
             include_dirs=[np.get_include()]
         )
+    ) + cythonize(
+        Extension(
+            "quickshift",
+            sources=["quickshift.pyx"],
+            include_dirs=[np.get_include()],
+            #extra_compile_args=['-fopenmp'],
+            #extra_link_args=['-fopenmp'],
+        )
     ),
     install_requires=["numpy"]
 )
