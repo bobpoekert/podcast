@@ -266,23 +266,27 @@ let make_word_map dists_fname fname_2d outfname out_width out_height min_x min_y
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in
   let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
-  let ncores = if is_parallel then (Corecount.count () |> Nativeint.to_int) else 1 in
+  let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in
   let p_dist = 1.0 /. (float_of_int (Array.length dists)) in 
   let dists_arrays = Array.map (make_dist_array big_tree 10000 p_dist) dists in 
   let _ = Array.iter (fun (k, _v) -> Printf.printf "%d " (Array.length k)) dists_arrays in
   let _ = print_endline "" in 
   genarray_with_file outfname Int64 [| out_width; out_height; max_res_words; 2 |] (fun out -> 
-    parrun (fun i -> 
-      let start_x = chunksize_x * i in 
-      for x = start_x to (start_x + chunksize_x - 1) do 
+    let render start_x end_x = (
+      for x = start_x to end_x do 
         for y = 0 to (out_height - 1) do 
           let res = (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays) in 
           set_array_pairs out x y res
         done
       done
+    ) in
+    if is_parallel then 
+      parrun (fun i -> 
+        let start_x = chunksize_x * i in 
+        render start_x (start_x + chunksize_x - 1)
+      ) else render 0 out_width
     )
-  )
 
 let () = 
   let dists_fname = Array.get Sys.argv 1 in 
