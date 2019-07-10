@@ -46,4 +46,5 @@ segments.bin segment_dists.bin: word_map.bin quickshift.so
 
 tiles/: cluster_dists.bin clusters_2d.bin quickshift.so 
 	mkdir tiles/
-	python3 segment_descent.py cluster_dists.bin clusters_2d.bin
+	cd tiles/
+	python3 ../segment_descent.py ../cluster_dists.bin ../clusters_2d.bin
