@@ -1,6 +1,7 @@
-open Cohttp
 open Bigarray
 open Utils
+open Lib.Rss
+open Lib.Tokens
 
 let load_cluster_ids fname = 
   let arr = load_array1 fname Int64 in 
@@ -9,214 +10,39 @@ let load_cluster_ids fname =
   let cluster_ids = Array1.sub arr (len / 2) (len / 2) in 
   (hashes, cluster_ids)
 
-
 let url_cluster_id (hashes, clusters) url = 
   let k = url_hash url |> Int64.of_int in 
   let idx = binary_search hashes k in 
   Int64.to_int (Array1.get clusters idx)
 
-let body_string inp =
-  let _rsp, body = Warc.parse_response_body inp in 
-  body
+let iter_word_histograms cluster_ids word_hists fname =
+  try (
+      iter_xml_pages fname (fun (_req : Warc.warc_entry) (headers : Warc.header) _head xml ->
+        try (
+            let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
+            let url = Warc.get_url headers in 
+            let cluster_id = url_cluster_id cluster_ids url in 
+            let cluster_hist = Array.get word_hists cluster_id in 
+            List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
+        ) with Not_found -> ()
+      );
+  ) with _ -> ()
 
-let body_xml inp =
-  let _rsp, body = Warc.parse_response_body inp in
-  Xml.parse_string body
+let word_histogram_worker cluster_ids word_hists fnames = 
+  (* generates a histogram over words for each topic *)
+  let _ = Array.iter (iter_word_histograms cluster_ids word_hists) fnames in 
+  let _ = Printf.printf "%d" (Array.fold_left (+) 0 (Array.map Art.length word_hists)) in 
+  let _ = print_endline "" in 
+  Array.map (Art.items) word_hists
 
-let response_code rsp =
-  Code.code_of_status (Response.status rsp)
-
-let page_iter_callback thunk (page : Warc.warc_page) =
-  let req = Warc.get_req page in 
-  let rsp = Warc.get_rsp page in
-  let body = Warc.get_body rsp in
-  let hrsp, body = Warc.parse_response_body body in
-  let code = response_code hrsp in
-  let header = Warc.get_headers rsp in
-  if code == 200 then
-      try (
-          let xml = Xml.parse_string body in
-          thunk req header hrsp xml
-      ) with _ -> ()
-
-let load_file fname =
-  (*TODO: SHELL INJECTION VULN! fix this to use create_process instead *)
-  Unix.open_process_in (Printf.sprintf "gunzip -c %s" fname)
-
-let close_file inf = close_in inf
-
-let iter_xml_pages fname thunk = 
-  let inf = load_file fname in
-  Warc.iter_pages inf (page_iter_callback thunk);
-  close_in inf
-
-type text_value =
-  | Text of string (* text blob, valid to tokenize *)
-  | Tag of string (* opaque tag, should not be tokenized *)
-
-let text_value_unwrap (v : text_value) =
-  match v with
-  | Text(v) -> v
-  | Tag(v) -> v
-
-let rec _xml_text res node =
-  match node with
-  | Xml.Element(_tag, _attrs, children) -> List.fold_left _xml_text res children
-  | Xml.PCData(v) -> (Text(v) :: res)
-
-let xml_text node = _xml_text [] node
-
-let splitter_re = Re.Pcre.regexp "[^a-zA-Z0-9/]+"
-
-let number_re = Re.Pcre.regexp "[0-9]"
-
-
-let is_good_token t = 
-  not (((String.length t) >= 15) ||
-      (String.contains t '/') || 
-      (Re.execp number_re t))
-
-let rec _clean_tokens tokens res =
-  match tokens with
-  | [] -> res
-  | h :: t ->
-    match h with
-    | `Text(v) -> _clean_tokens t ((String.lowercase_ascii v) :: res)
-    | `Delim(_) -> _clean_tokens t res
-
-let clean_tokens tokens = _clean_tokens tokens []
-
-let bigrams unigrams = 
-  try
-    List.append unigrams (snd (List.fold_left (fun (prev, res) v -> (v, (Printf.sprintf "%s %s" v prev) :: res)) ((List.hd unigrams), []) (List.tl unigrams)))
-  with Failure _ -> []
-
-let tokenize_text (inp : text_value) = 
-  match inp with
-  | Tag(v) -> [v]
-  | Text(v) -> (Re.split_full splitter_re v) |> clean_tokens |> List.filter is_good_token
-
-let unwrap_text_value (inp : text_value) = 
-  match inp with
-  | Tag(v) -> v
-  | Text(v) -> v
-
-let rec _channel_meta_text res xml =
-  match xml with
-  | Xml.PCData(_) -> res
-  | Xml.Element(tag, _attrs, children) ->
-    match tag with
-    | "title" | "description" | "itunes:title" | "itunes:description" | "itunes:subtitle"
-    | "itunes:summary" | "googleplay:description" ->
-      (List.append (xml_text xml) res)
-    | "itunes:category" | "googleplay:category" ->
-      List.fold_left _channel_meta_text (Tag(Xml.attrib xml "text") :: res) children
-    | _ -> List.fold_left _channel_meta_text res children
-
-let channel_meta_text xml = _channel_meta_text [] xml
-
-let rec _iter_tag_name tag_name thunk xml =
-  match xml with
-  | Xml.PCData(_) -> ()
-  | Xml.Element(tag, _attrs, children) ->
-    if (String.compare tag_name tag) == 0 then thunk xml;
-    List.iter (_iter_tag_name tag_name thunk) children
-
-let iter_tag_name xml tag_name thunk = _iter_tag_name tag_name thunk xml
-let iter_item xml thunk = iter_tag_name xml "item" thunk
-
-let rec _first_tag_name tag_name xmls = 
-  match xmls with
-  | [] -> None
-  | xml :: rest ->
-    match xml with
-    | Xml.PCData(_) -> _first_tag_name tag_name rest
-    | Xml.Element(tag, _attrs, children) ->
-      if (String.compare tag tag_name) == 0 then Some(xml) else 
-      _first_tag_name tag_name (List.append rest children)
-
-let first_tag_name tag_name xml = _first_tag_name tag_name [xml]
-
-let hist_update h k =
-  let prev = Hashtbl.find h k in
-  Hashtbl.replace h k (prev + 1)
-
-let into_histogram h items =
-  List.iter (hist_update h) items
-
-let words_into_histogram h text =
-  into_histogram h (tokenize_text text)  
-
-let item_guid item_xml =
-  match first_tag_name "guid" item_xml with
-  | Some(tag) -> Some(String.concat "" (List.map text_value_unwrap (xml_text tag)))
-  | None ->
-    match first_tag_name "enclosure" item_xml with
-    | Some(tag) -> Some(Xml.attrib tag "url")
-    | None -> None
-
-type tree = (Art.tree * int)
-
-let into_tree words : tree =
-  let res = Art.create () in 
-  List.iter (fun word -> Art.incr res word 1) words;
-  (res, Art.sum res)
-
-let load_tree fname : tree array = 
-  let chan = open_in fname in 
-  let data = Marshal.from_channel chan in 
-  let _ = close_file chan in 
-  Array.map (fun rows -> 
-    let tree = Art.create () in 
-    List.iter (fun (k, v) -> Art.put tree k v) rows;
-    (tree, Art.sum tree)
-  ) data
-
-type token_ids = (Art.tree * int ref)
-
-let make_token_ids () = (Art.create (), ref 0)
-
-let give_token_id (ids:token_ids) token = 
-  let tree, ctr = ids in 
-  try
-    (Art.get tree token)
-  with Not_found -> 
-    let ctrv = !ctr in
-    let _ = incr ctr in 
-    let _ = Art.put tree token ctrv in 
-    ctrv
-
-let get_token_id (ids:token_ids) token = 
-  let tree, _ = ids in 
-  Art.get tree token
-
-let give_token_ids (ids:token_ids) (trees:tree array) = 
-  Array.iter (fun (tt, _) ->
-    Art.iter tt (fun k _v -> 
-      let _ = give_token_id ids k in ()
-    )
-  ) trees
-
-let write_token_ids (ids, _) outfname =   
-  with_out outfname (fun fd -> 
-    Art.iter ids (fun k v -> 
-      output_string fd k;
-      output_string fd "\t";
-      output_string fd (string_of_int v);
-      output_string fd "\n";
-    );
-  ); ()
-
-let tree_similarity a b =
-  let a, a_sum = a in
-  let b, b_sum = b in 
-  Art.fold a (fun k v res -> 
-    try (
-      let vb = Art.get b k in
-      res - abs (v - vb)
-    ) with Not_found -> res
-  ) (a_sum + b_sum)
-
+let word_histogram_reducer res hists = 
+  (* sum the histograms from each of the histogram workers *)
+  (for i = 0 to ((Array.length res) - 1) do 
+    let target = Array.get res i in 
+    let src = Array.get hists i in 
+    List.iter (fun (k, v) -> Art.incr target k v) src;
+  done);
+  res
 
 let pairwise_tree_similarities target trees = 
   let n_trees = (Array.length trees) - 1 in
@@ -237,124 +63,8 @@ let pairwise_tree_similarities_to_file fname trees =
   let dim_size = Array.length trees in 
   let _ = array2_with_file fname Int64 dim_size dim_size (fun arr -> pairwise_tree_similarities arr trees) in ()
 
-let words_vec hists words = 
-  let wt = into_tree words in 
-  let sims = Array.map (tree_similarity wt) hists in 
-  let total_sim = float_of_int (Array.fold_left (+) 0 sims) in 
-  Array.map (fun v -> (float_of_int v) /. total_sim) sims
 
-let iter_word_histograms cluster_ids word_hists fname =
-  try (
-      iter_xml_pages fname (fun (_req : Warc.warc_entry) (headers : Warc.header) _head xml ->
-        try (
-            let meta_text = List.concat (List.map tokenize_text (channel_meta_text xml)) in 
-            let url = Warc.get_url headers in 
-            let cluster_id = url_cluster_id cluster_ids url in 
-            let cluster_hist = Array.get word_hists cluster_id in 
-            List.iter (fun word -> Art.incr cluster_hist word 1) meta_text;
-        ) with Not_found -> ()
-      );
-  ) with _ -> ()
-
-let word_histogram_worker cluster_ids word_hists fnames = 
-  let _ = Array.iter (iter_word_histograms cluster_ids word_hists) fnames in 
-  let _ = Printf.printf "%d" (Array.fold_left (+) 0 (Array.map Art.length word_hists)) in 
-  let _ = print_endline "" in 
-  Array.map (Art.items) word_hists
-
-let word_histogram_reducer res hists = 
-  (for i = 0 to ((Array.length res) - 1) do 
-    let target = Array.get res i in 
-    let src = Array.get hists i in 
-    List.iter (fun (k, v) -> Art.incr target k v) src;
-  done);
-  res
-
-external set32_prim : bytes -> int -> int32 -> unit = "%caml_bytes_set32"
-external set64_prim : bytes -> int -> int64 -> unit = "%caml_bytes_set64"
-
-let pack_int32 v = 
-  let res = Bytes.create 4 in (
-    Bytes.set res 0 (Char.chr (Int32.to_int v));
-    Bytes.set res 1 (Char.chr (Int32.to_int (Int32.shift_right_logical v 8)));
-    Bytes.set res 2 (Char.chr (Int32.to_int (Int32.shift_right_logical v 16)));
-    Bytes.set res 3 (Char.chr (Int32.to_int (Int32.shift_right_logical v 24)));
-    Bytes.to_string res
-  )
-
-let pack_float32 v = 
-  let bits = Int32.bits_of_float v in 
-  pack_int32 bits
-
-let pack_int64 v = 
-  let res = Bytes.create 8 in (
-    Bytes.set res 0 (Char.chr (Int64.to_int v));
-    Bytes.set res 1 (Char.chr (Int64.to_int (Int64.shift_right_logical v 8)));
-    Bytes.set res 2 (Char.chr (Int64.to_int (Int64.shift_right_logical v 16)));
-    Bytes.set res 3 (Char.chr (Int64.to_int (Int64.shift_right_logical v 24)));
-    Bytes.set res 4 (Char.chr (Int64.to_int (Int64.shift_right_logical v 32)));
-    Bytes.set res 5 (Char.chr (Int64.to_int (Int64.shift_right_logical v 40)));
-    Bytes.set res 6 (Char.chr (Int64.to_int (Int64.shift_right_logical v 48)));
-    Bytes.set res 7 (Char.chr (Int64.to_int (Int64.shift_right_logical v 56)));
-    Bytes.to_string res
-  )
-
-let generate_page_vecs outfname infnames trees = 
-  let ncores = (Corecount.count () |> Nativeint.to_int) in 
-  let parts = partition ncores infnames in 
-  let pids = Array.mapi (fun i part ->
-    let pid = Unix.fork () in 
-    if pid = 0 then (
-      let outf = open_out (Printf.sprintf "%s.%d" outfname i) in 
-      Array.iter (fun xml_fname -> 
-        iter_xml_pages xml_fname (fun (_req: Warc.warc_entry) (headers: Warc.header) _head xml ->
-          let meta_text = List.filter (fun s -> (String.length s) < 25) (
-            List.concat (List.map tokenize_text (channel_meta_text xml))
-          ) in 
-          let page_tree = into_tree meta_text in 
-          let vec = Array.map (tree_similarity page_tree) trees in
-          let vec_sum = Array.fold_left (+) 0 vec |> Float.of_int in 
-          let vec = Array.map (fun v -> (Float.of_int v) /. vec_sum) vec in 
-          let id = url_hash (Warc.get_url headers) |> Int64.of_int in 
-          output_string outf (pack_int64 id);
-          Array.iter (fun v -> output_string outf (pack_float32 v)) vec;
-        )
-      ) part;
-      close_out outf;
-      exit 0;
-    ) else pid
-  ) parts in 
-  Array.iter (fun pid -> let _ = Unix.waitpid [] pid in ()) pids; ()
-
-let into_dict vs = 
-  let res = Hashtbl.create (List.length vs) in 
-  let _ = List.iter (fun v -> let _ = (try Hashtbl.replace res v ((Hashtbl.find res v) + 1) with Not_found -> Hashtbl.replace res v 1) in ()) vs in 
-  res
-
-let generate_page_bows infnames token_ids outfname = 
-  parparts infnames (fun i part -> 
-    with_out (Printf.sprintf "%s.%d" outfname i) (fun outf ->
-    Array.iter (fun xml_fname -> 
-      iter_xml_pages xml_fname (fun (_req: Warc.warc_entry) (headers: Warc.header) _head xml ->
-        let meta_text = List.filter (fun s -> (String.length s) < 25) (
-          List.concat (List.map tokenize_text (channel_meta_text xml))
-        ) |> into_dict in 
-        let meta_sum = Hashtbl.fold (fun _ v a -> v + a) meta_text 0 in 
-        if meta_sum > 100 then (
-            let meta_sum = float_of_int meta_sum in 
-            let id = url_hash (Warc.get_url headers) |> Int64.of_int in 
-            Hashtbl.iter (fun token cnt -> 
-              output_string outf (pack_int64 id);
-              output_string outf (pack_int64 (Int64.of_int (get_token_id token_ids token)));
-              output_string outf (pack_float32 ((float_of_int cnt) /. meta_sum));
-            ) meta_text;
-        );
-      );
-    ) part;
-  )
-)
-
-let process_pages fnames clusters_fname outfname pairwise_outfname bows_outfname = 
+let process_pages fnames clusters_fname outfname pairwise_outfname = 
   let clusters = load_cluster_ids clusters_fname in 
   let _cluster_hashes, cluster_ids = clusters in 
   let distinct_cluster_ids = Hashtbl.create 1024 in 
@@ -365,28 +75,24 @@ let process_pages fnames clusters_fname outfname pairwise_outfname bows_outfname
   let _ = Printf.printf "%d" n_clusters in 
   let _ = print_endline "" in 
   let first_hist = Art.create () in 
+  (* generate word histograms for each topic *)
   let hists = Array.make n_clusters first_hist in 
   Array.set hists 0 first_hist;
   for i = 1 to (n_clusters - 1) do 
     Array.set hists i (Art.create ())
   done;
-  let res = parmap fnames (word_histogram_worker clusters hists) word_histogram_reducer hists in 
-  let res = array_filteri (fun _i v -> (Art.length v) > 1) res in 
-  let res_trees = Array.map (fun t -> (t, Art.sum t)) res in 
-  let token_ids = make_token_ids () in 
+  let res_word_histograms = parmap fnames (word_histogram_worker clusters hists) word_histogram_reducer hists in 
+  let res_word_histograms = array_filteri (fun _i v -> (Art.length v) > 1) res_word_histograms in 
+  let res_trees = Array.map (fun t -> (t, Art.sum t)) res_word_histograms in 
   let out = open_out outfname in
-  Marshal.to_channel out (Array.map Art.items res) [];
+  Marshal.to_channel out (Array.map Art.items res_word_histograms) [];
   close_out out;
-  give_token_ids token_ids res_trees;
-  write_token_ids token_ids (Printf.sprintf "%s.txt" bows_outfname);
-  pairwise_tree_similarities_to_file pairwise_outfname res_trees;
-  generate_page_bows fnames token_ids bows_outfname;
-  (*generate_page_vecs vecs_outfname fnames res_trees;*) ()
+  (* generate topic x topic similarity matrix *)
+  pairwise_tree_similarities_to_file pairwise_outfname res_trees; ()
 
 let () = 
   let clusters_fname = Array.get Sys.argv 1 in 
   let outfname = Array.get Sys.argv 2 in 
   let pairwise_outfname = Array.get Sys.argv 3 in
-  let vecs_outfname = Array.get Sys.argv 4 in 
-  let fnames = Array.sub Sys.argv 5 ((Array.length Sys.argv) - 5) in 
-  process_pages fnames clusters_fname outfname pairwise_outfname vecs_outfname; ()
+  let fnames = Array.sub Sys.argv 4 ((Array.length Sys.argv) - 4) in 
+  process_pages fnames clusters_fname outfname pairwise_outfname; ()

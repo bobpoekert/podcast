@@ -1,0 +1,11 @@
+(library
+    (name lib)
+    (libraries warc xml-light re murmur parmap art corecount cohttp utils))
+
+(env
+ (dev
+   (flags (:standard -warn-error +a-42-21))
+   (ocamlopt_flags (:standard -w +42)))
+  (release
+    (flags (:standard -warn-error +a-42-21))
+    (ocamlopt_flags (:standard -O3))))

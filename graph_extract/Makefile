@@ -26,9 +26,6 @@ cluster_dists.bin pairwise_clusters.bin: cluster_ids.npy rss_extract.exe
 	touch cluster_dists.bin
 	./rss_extract.exe cluster_ids.npy cluster_dists.bin pairwise_clusters.bin bow_vecs.bin `ls /mnt/lappy/rss_warc/*.warc.gz`
 
-bow_clusters.bin: cluster_dists.bin 
-	sh -c 'python3 word_clusters.py `ls bow_vecs.bin*`'
-
 clusters_2d.bin: pairwise_clusters.bin
 	python3 mds.py
 
