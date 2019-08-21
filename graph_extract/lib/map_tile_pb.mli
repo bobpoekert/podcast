@@ -9,11 +9,17 @@ val encode_image_use_context : Map_tile_types.image_use_context -> Pbrt.Encoder.
 val encode_image : Map_tile_types.image -> Pbrt.Encoder.t -> unit
 (** [encode_image v encoder] encodes [v] with the given [encoder] *)
 
+val encode_tag : Map_tile_types.tag -> Pbrt.Encoder.t -> unit
+(** [encode_tag v encoder] encodes [v] with the given [encoder] *)
+
 val encode_media_file_media_type : Map_tile_types.media_file_media_type -> Pbrt.Encoder.t -> unit
 (** [encode_media_file_media_type v encoder] encodes [v] with the given [encoder] *)
 
 val encode_media_file : Map_tile_types.media_file -> Pbrt.Encoder.t -> unit
 (** [encode_media_file v encoder] encodes [v] with the given [encoder] *)
+
+val encode_content_location : Map_tile_types.content_location -> Pbrt.Encoder.t -> unit
+(** [encode_content_location v encoder] encodes [v] with the given [encoder] *)
 
 val encode_podcast_episode : Map_tile_types.podcast_episode -> Pbrt.Encoder.t -> unit
 (** [encode_podcast_episode v encoder] encodes [v] with the given [encoder] *)
@@ -45,11 +51,17 @@ val decode_image_use_context : Pbrt.Decoder.t -> Map_tile_types.image_use_contex
 val decode_image : Pbrt.Decoder.t -> Map_tile_types.image
 (** [decode_image decoder] decodes a [image] value from [decoder] *)
 
+val decode_tag : Pbrt.Decoder.t -> Map_tile_types.tag
+(** [decode_tag decoder] decodes a [tag] value from [decoder] *)
+
 val decode_media_file_media_type : Pbrt.Decoder.t -> Map_tile_types.media_file_media_type
 (** [decode_media_file_media_type decoder] decodes a [media_file_media_type] value from [decoder] *)
 
 val decode_media_file : Pbrt.Decoder.t -> Map_tile_types.media_file
 (** [decode_media_file decoder] decodes a [media_file] value from [decoder] *)
+
+val decode_content_location : Pbrt.Decoder.t -> Map_tile_types.content_location
+(** [decode_content_location decoder] decodes a [content_location] value from [decoder] *)
 
 val decode_podcast_episode : Pbrt.Decoder.t -> Map_tile_types.podcast_episode
 (** [decode_podcast_episode decoder] decodes a [podcast_episode] value from [decoder] *)

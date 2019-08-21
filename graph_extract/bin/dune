@@ -18,6 +18,11 @@
     (modules extract_words)
     (libraries utils murmur))
 
+(executable
+    (name proto_extract)
+    (modules proto_extract)
+    (libraries utils art corecount lib xml-light re parmap syndic))
+
 (env
  (dev
    (flags (:standard -warn-error +a-42-21))

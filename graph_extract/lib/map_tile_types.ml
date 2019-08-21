@@ -13,7 +13,15 @@ type image = {
   mime_type : string option;
   width : float option;
   height : float option;
+  title : string option;
+  x_offset : float option;
+  y_offset : float option;
   use_context : image_use_context option;
+}
+
+type tag = {
+  name : string option;
+  uri : string option;
 }
 
 type media_file_media_type =
@@ -28,12 +36,21 @@ type media_file = {
   length : float option;
 }
 
+type content_location = {
+  weights : float list;
+  loc_x : float option;
+  loc_y : float option;
+}
+
 type podcast_episode = {
   id : int64;
   title : string option;
   description : string option;
   images : image list;
   media_files : media_file list;
+  tags : tag list;
+  location : content_location option;
+  pub_time : int64 option;
 }
 
 type podcast = {
@@ -44,6 +61,8 @@ type podcast = {
   homepage_url : string option;
   images : image list;
   episodes : podcast_episode list;
+  location : content_location option;
+  tags : tag list;
 }
 
 type term = {
@@ -88,13 +107,27 @@ let rec default_image
   ?mime_type:((mime_type:string option) = None)
   ?width:((width:float option) = None)
   ?height:((height:float option) = None)
+  ?title:((title:string option) = None)
+  ?x_offset:((x_offset:float option) = None)
+  ?y_offset:((y_offset:float option) = None)
   ?use_context:((use_context:image_use_context option) = None)
   () : image  = {
   url;
   mime_type;
   width;
   height;
+  title;
+  x_offset;
+  y_offset;
   use_context;
+}
+
+let rec default_tag 
+  ?name:((name:string option) = None)
+  ?uri:((uri:string option) = None)
+  () : tag  = {
+  name;
+  uri;
 }
 
 let rec default_media_file_media_type () = (Audio:media_file_media_type)
@@ -111,18 +144,34 @@ let rec default_media_file
   length;
 }
 
+let rec default_content_location 
+  ?weights:((weights:float list) = [])
+  ?loc_x:((loc_x:float option) = None)
+  ?loc_y:((loc_y:float option) = None)
+  () : content_location  = {
+  weights;
+  loc_x;
+  loc_y;
+}
+
 let rec default_podcast_episode 
   ?id:((id:int64) = 0L)
   ?title:((title:string option) = None)
   ?description:((description:string option) = None)
   ?images:((images:image list) = [])
   ?media_files:((media_files:media_file list) = [])
+  ?tags:((tags:tag list) = [])
+  ?location:((location:content_location option) = None)
+  ?pub_time:((pub_time:int64 option) = None)
   () : podcast_episode  = {
   id;
   title;
   description;
   images;
   media_files;
+  tags;
+  location;
+  pub_time;
 }
 
 let rec default_podcast 
@@ -133,6 +182,8 @@ let rec default_podcast
   ?homepage_url:((homepage_url:string option) = None)
   ?images:((images:image list) = [])
   ?episodes:((episodes:podcast_episode list) = [])
+  ?location:((location:content_location option) = None)
+  ?tags:((tags:tag list) = [])
   () : podcast  = {
   id;
   title;
@@ -141,6 +192,8 @@ let rec default_podcast
   homepage_url;
   images;
   episodes;
+  location;
+  tags;
 }
 
 let rec default_term 

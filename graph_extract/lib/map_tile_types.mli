@@ -16,7 +16,15 @@ type image = {
   mime_type : string option;
   width : float option;
   height : float option;
+  title : string option;
+  x_offset : float option;
+  y_offset : float option;
   use_context : image_use_context option;
+}
+
+type tag = {
+  name : string option;
+  uri : string option;
 }
 
 type media_file_media_type =
@@ -31,12 +39,21 @@ type media_file = {
   length : float option;
 }
 
+type content_location = {
+  weights : float list;
+  loc_x : float option;
+  loc_y : float option;
+}
+
 type podcast_episode = {
   id : int64;
   title : string option;
   description : string option;
   images : image list;
   media_files : media_file list;
+  tags : tag list;
+  location : content_location option;
+  pub_time : int64 option;
 }
 
 type podcast = {
@@ -47,6 +64,8 @@ type podcast = {
   homepage_url : string option;
   images : image list;
   episodes : podcast_episode list;
+  location : content_location option;
+  tags : tag list;
 }
 
 type term = {
@@ -95,10 +114,20 @@ val default_image :
   ?mime_type:string option ->
   ?width:float option ->
   ?height:float option ->
+  ?title:string option ->
+  ?x_offset:float option ->
+  ?y_offset:float option ->
   ?use_context:image_use_context option ->
   unit ->
   image
 (** [default_image ()] is the default value for type [image] *)
+
+val default_tag : 
+  ?name:string option ->
+  ?uri:string option ->
+  unit ->
+  tag
+(** [default_tag ()] is the default value for type [tag] *)
 
 val default_media_file_media_type : unit -> media_file_media_type
 (** [default_media_file_media_type ()] is the default value for type [media_file_media_type] *)
@@ -112,12 +141,23 @@ val default_media_file :
   media_file
 (** [default_media_file ()] is the default value for type [media_file] *)
 
+val default_content_location : 
+  ?weights:float list ->
+  ?loc_x:float option ->
+  ?loc_y:float option ->
+  unit ->
+  content_location
+(** [default_content_location ()] is the default value for type [content_location] *)
+
 val default_podcast_episode : 
   ?id:int64 ->
   ?title:string option ->
   ?description:string option ->
   ?images:image list ->
   ?media_files:media_file list ->
+  ?tags:tag list ->
+  ?location:content_location option ->
+  ?pub_time:int64 option ->
   unit ->
   podcast_episode
 (** [default_podcast_episode ()] is the default value for type [podcast_episode] *)
@@ -130,6 +170,8 @@ val default_podcast :
   ?homepage_url:string option ->
   ?images:image list ->
   ?episodes:podcast_episode list ->
+  ?location:content_location option ->
+  ?tags:tag list ->
   unit ->
   podcast
 (** [default_podcast ()] is the default value for type [podcast] *)

@@ -3,6 +3,13 @@ message Image {
     optional string mime_type = 2;
     optional float width = 3;
     optional float height = 4;
+    optional string title = 8;
+
+    // the image the url points to may be a texture atlas,
+    // in which case we want the (x_offset, y_offset, width, height) bbox
+    optional float x_offset = 6;
+    optional float y_offset = 7;
+
     enum UseContext {
         THUMBNAIL = 0;
         COVER = 1;
@@ -11,6 +18,11 @@ message Image {
         AVATAR = 3;
     }
     optional UseContext use_context = 5;
+}
+
+message Tag {
+    optional string name = 1;
+    optional string uri = 2;
 }
 
 message MediaFile {
@@ -25,6 +37,12 @@ message MediaFile {
     optional float length = 4; // length in milliseconds
 }
 
+message ContentLocation {
+    repeated float weights = 8;
+    optional float loc_x = 9;
+    optional float loc_y = 10;
+}
+
 message Podcast {
     required uint64 id = 1;
     optional string title = 2;
@@ -33,6 +51,8 @@ message Podcast {
     optional string homepage_url = 5;
     repeated Image images = 6;
     repeated PodcastEpisode episodes = 7;
+    optional ContentLocation location = 8;
+    repeated Tag tags = 9;
 }
 
 message PodcastEpisode {
@@ -41,6 +61,10 @@ message PodcastEpisode {
     optional string description = 3;
     repeated Image images = 4;
     repeated MediaFile media_files = 5;
+    repeated Tag tags = 6;
+    optional ContentLocation location = 7;
+    optional int64 pub_time = 8;
+
 }
 
 message Term {
