@@ -6,6 +6,7 @@ type image_mutable = {
   mutable width : float option;
   mutable height : float option;
   mutable title : string option;
+  mutable href : string option;
   mutable x_offset : float option;
   mutable y_offset : float option;
   mutable use_context : Map_tile_types.image_use_context option;
@@ -17,6 +18,7 @@ let default_image_mutable () : image_mutable = {
   width = None;
   height = None;
   title = None;
+  href = None;
   x_offset = None;
   y_offset = None;
   use_context = None;
@@ -58,50 +60,110 @@ let default_content_location_mutable () : content_location_mutable = {
   loc_y = None;
 }
 
+type category_mutable = {
+  mutable name : string option;
+  mutable children : Map_tile_types.category list;
+}
+
+let default_category_mutable () : category_mutable = {
+  name = None;
+  children = [];
+}
+
+type owner_mutable = {
+  mutable name : string option;
+  mutable email : string option;
+}
+
+let default_owner_mutable () : owner_mutable = {
+  name = None;
+  email = None;
+}
+
 type podcast_episode_mutable = {
   mutable id : int64;
-  mutable title : string option;
-  mutable description : string option;
+  mutable titles : string list;
+  mutable descriptions : string list;
   mutable images : Map_tile_types.image list;
   mutable media_files : Map_tile_types.media_file list;
   mutable tags : Map_tile_types.tag list;
   mutable location : Map_tile_types.content_location option;
   mutable pub_time : int64 option;
+  mutable publisher_guid : string option;
+  mutable webpage_urls : string list;
+  mutable duration : float option;
+  mutable explicit : string option;
+  mutable subtitle : string option;
+  mutable episode_number : string option;
+  mutable episode_type : Map_tile_types.podcast_episode_episode_type option;
+  mutable author : string option;
 }
 
 let default_podcast_episode_mutable () : podcast_episode_mutable = {
   id = 0L;
-  title = None;
-  description = None;
+  titles = [];
+  descriptions = [];
   images = [];
   media_files = [];
   tags = [];
   location = None;
   pub_time = None;
+  publisher_guid = None;
+  webpage_urls = [];
+  duration = None;
+  explicit = None;
+  subtitle = None;
+  episode_number = None;
+  episode_type = None;
+  author = None;
 }
 
 type podcast_mutable = {
   mutable id : int64;
   mutable title : string option;
   mutable slug : string option;
-  mutable description : string option;
+  mutable descriptions : string list;
   mutable homepage_url : string option;
   mutable images : Map_tile_types.image list;
   mutable episodes : Map_tile_types.podcast_episode list;
   mutable location : Map_tile_types.content_location option;
   mutable tags : Map_tile_types.tag list;
+  mutable pub_date : int64 option;
+  mutable last_build_date : int64 option;
+  mutable generator : string option;
+  mutable language : string option;
+  mutable copyright : string option;
+  mutable editor_contact : string option;
+  mutable summary : string option;
+  mutable author : string option;
+  mutable categories : Map_tile_types.category list;
+  mutable explicit : string option;
+  mutable owner : Map_tile_types.owner option;
+  mutable is_serial : bool option;
 }
 
 let default_podcast_mutable () : podcast_mutable = {
   id = 0L;
   title = None;
   slug = None;
-  description = None;
+  descriptions = [];
   homepage_url = None;
   images = [];
   episodes = [];
   location = None;
   tags = [];
+  pub_date = None;
+  last_build_date = None;
+  generator = None;
+  language = None;
+  copyright = None;
+  editor_contact = None;
+  summary = None;
+  author = None;
+  categories = [];
+  explicit = None;
+  owner = None;
+  is_serial = None;
 }
 
 type term_mutable = {
@@ -216,6 +278,11 @@ let rec decode_image d =
     end
     | Some (8, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(image), field(8)" pk
+    | Some (9, Pbrt.Bytes) -> begin
+      v.href <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (9, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(image), field(9)" pk
     | Some (6, Pbrt.Bits32) -> begin
       v.x_offset <- Some (Pbrt.Decoder.float_as_bits32 d);
     end
@@ -239,6 +306,7 @@ let rec decode_image d =
     Map_tile_types.width = v.width;
     Map_tile_types.height = v.height;
     Map_tile_types.title = v.title;
+    Map_tile_types.href = v.href;
     Map_tile_types.x_offset = v.x_offset;
     Map_tile_types.y_offset = v.y_offset;
     Map_tile_types.use_context = v.use_context;
@@ -342,6 +410,62 @@ let rec decode_content_location d =
     Map_tile_types.loc_y = v.loc_y;
   } : Map_tile_types.content_location)
 
+let rec decode_category d =
+  let v = default_category_mutable () in
+  let continue__= ref true in
+  while !continue__ do
+    match Pbrt.Decoder.key d with
+    | None -> (
+      v.children <- List.rev v.children;
+    ); continue__ := false
+    | Some (1, Pbrt.Bytes) -> begin
+      v.name <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (1, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(category), field(1)" pk
+    | Some (2, Pbrt.Bytes) -> begin
+      v.children <- (decode_category (Pbrt.Decoder.nested d)) :: v.children;
+    end
+    | Some (2, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(category), field(2)" pk
+    | Some (_, payload_kind) -> Pbrt.Decoder.skip d payload_kind
+  done;
+  ({
+    Map_tile_types.name = v.name;
+    Map_tile_types.children = v.children;
+  } : Map_tile_types.category)
+
+let rec decode_owner d =
+  let v = default_owner_mutable () in
+  let continue__= ref true in
+  while !continue__ do
+    match Pbrt.Decoder.key d with
+    | None -> (
+    ); continue__ := false
+    | Some (1, Pbrt.Bytes) -> begin
+      v.name <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (1, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(owner), field(1)" pk
+    | Some (2, Pbrt.Bytes) -> begin
+      v.email <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (2, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(owner), field(2)" pk
+    | Some (_, payload_kind) -> Pbrt.Decoder.skip d payload_kind
+  done;
+  ({
+    Map_tile_types.name = v.name;
+    Map_tile_types.email = v.email;
+  } : Map_tile_types.owner)
+
+let rec decode_podcast_episode_episode_type d = 
+  match Pbrt.Decoder.int_as_varint d with
+  | 1 -> (Map_tile_types.Full:Map_tile_types.podcast_episode_episode_type)
+  | 2 -> (Map_tile_types.Trailer:Map_tile_types.podcast_episode_episode_type)
+  | 3 -> (Map_tile_types.Bonus:Map_tile_types.podcast_episode_episode_type)
+  | _ -> Pbrt.Decoder.malformed_variant "podcast_episode_episode_type"
+
 let rec decode_podcast_episode d =
   let v = default_podcast_episode_mutable () in
   let continue__= ref true in
@@ -349,9 +473,12 @@ let rec decode_podcast_episode d =
   while !continue__ do
     match Pbrt.Decoder.key d with
     | None -> (
+      v.webpage_urls <- List.rev v.webpage_urls;
       v.tags <- List.rev v.tags;
       v.media_files <- List.rev v.media_files;
       v.images <- List.rev v.images;
+      v.descriptions <- List.rev v.descriptions;
+      v.titles <- List.rev v.titles;
     ); continue__ := false
     | Some (1, Pbrt.Varint) -> begin
       v.id <- Pbrt.Decoder.int64_as_varint d; id_is_set := true;
@@ -359,12 +486,12 @@ let rec decode_podcast_episode d =
     | Some (1, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(1)" pk
     | Some (2, Pbrt.Bytes) -> begin
-      v.title <- Some (Pbrt.Decoder.string d);
+      v.titles <- (Pbrt.Decoder.string d) :: v.titles;
     end
     | Some (2, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(2)" pk
     | Some (3, Pbrt.Bytes) -> begin
-      v.description <- Some (Pbrt.Decoder.string d);
+      v.descriptions <- (Pbrt.Decoder.string d) :: v.descriptions;
     end
     | Some (3, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(3)" pk
@@ -393,18 +520,66 @@ let rec decode_podcast_episode d =
     end
     | Some (8, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(8)" pk
+    | Some (9, Pbrt.Bytes) -> begin
+      v.publisher_guid <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (9, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(9)" pk
+    | Some (10, Pbrt.Bytes) -> begin
+      v.webpage_urls <- (Pbrt.Decoder.string d) :: v.webpage_urls;
+    end
+    | Some (10, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(10)" pk
+    | Some (11, Pbrt.Bits64) -> begin
+      v.duration <- Some (Pbrt.Decoder.float_as_bits64 d);
+    end
+    | Some (11, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(11)" pk
+    | Some (12, Pbrt.Bytes) -> begin
+      v.explicit <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (12, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(12)" pk
+    | Some (13, Pbrt.Bytes) -> begin
+      v.subtitle <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (13, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(13)" pk
+    | Some (14, Pbrt.Bytes) -> begin
+      v.episode_number <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (14, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(14)" pk
+    | Some (15, Pbrt.Varint) -> begin
+      v.episode_type <- Some (decode_podcast_episode_episode_type d);
+    end
+    | Some (15, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(15)" pk
+    | Some (16, Pbrt.Bytes) -> begin
+      v.author <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (16, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast_episode), field(16)" pk
     | Some (_, payload_kind) -> Pbrt.Decoder.skip d payload_kind
   done;
   begin if not !id_is_set then Pbrt.Decoder.missing_field "id" end;
   ({
     Map_tile_types.id = v.id;
-    Map_tile_types.title = v.title;
-    Map_tile_types.description = v.description;
+    Map_tile_types.titles = v.titles;
+    Map_tile_types.descriptions = v.descriptions;
     Map_tile_types.images = v.images;
     Map_tile_types.media_files = v.media_files;
     Map_tile_types.tags = v.tags;
     Map_tile_types.location = v.location;
     Map_tile_types.pub_time = v.pub_time;
+    Map_tile_types.publisher_guid = v.publisher_guid;
+    Map_tile_types.webpage_urls = v.webpage_urls;
+    Map_tile_types.duration = v.duration;
+    Map_tile_types.explicit = v.explicit;
+    Map_tile_types.subtitle = v.subtitle;
+    Map_tile_types.episode_number = v.episode_number;
+    Map_tile_types.episode_type = v.episode_type;
+    Map_tile_types.author = v.author;
   } : Map_tile_types.podcast_episode)
 
 let rec decode_podcast d =
@@ -414,9 +589,11 @@ let rec decode_podcast d =
   while !continue__ do
     match Pbrt.Decoder.key d with
     | None -> (
+      v.categories <- List.rev v.categories;
       v.tags <- List.rev v.tags;
       v.episodes <- List.rev v.episodes;
       v.images <- List.rev v.images;
+      v.descriptions <- List.rev v.descriptions;
     ); continue__ := false
     | Some (1, Pbrt.Varint) -> begin
       v.id <- Pbrt.Decoder.int64_as_varint d; id_is_set := true;
@@ -434,7 +611,7 @@ let rec decode_podcast d =
     | Some (3, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(podcast), field(3)" pk
     | Some (4, Pbrt.Bytes) -> begin
-      v.description <- Some (Pbrt.Decoder.string d);
+      v.descriptions <- (Pbrt.Decoder.string d) :: v.descriptions;
     end
     | Some (4, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(podcast), field(4)" pk
@@ -463,6 +640,66 @@ let rec decode_podcast d =
     end
     | Some (9, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(podcast), field(9)" pk
+    | Some (10, Pbrt.Varint) -> begin
+      v.pub_date <- Some (Pbrt.Decoder.int64_as_varint d);
+    end
+    | Some (10, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(10)" pk
+    | Some (11, Pbrt.Varint) -> begin
+      v.last_build_date <- Some (Pbrt.Decoder.int64_as_varint d);
+    end
+    | Some (11, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(11)" pk
+    | Some (12, Pbrt.Bytes) -> begin
+      v.generator <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (12, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(12)" pk
+    | Some (13, Pbrt.Bytes) -> begin
+      v.language <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (13, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(13)" pk
+    | Some (14, Pbrt.Bytes) -> begin
+      v.copyright <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (14, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(14)" pk
+    | Some (15, Pbrt.Bytes) -> begin
+      v.editor_contact <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (15, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(15)" pk
+    | Some (16, Pbrt.Bytes) -> begin
+      v.summary <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (16, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(16)" pk
+    | Some (17, Pbrt.Bytes) -> begin
+      v.author <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (17, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(17)" pk
+    | Some (18, Pbrt.Bytes) -> begin
+      v.categories <- (decode_category (Pbrt.Decoder.nested d)) :: v.categories;
+    end
+    | Some (18, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(18)" pk
+    | Some (19, Pbrt.Bytes) -> begin
+      v.explicit <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (19, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(19)" pk
+    | Some (20, Pbrt.Bytes) -> begin
+      v.owner <- Some (decode_owner (Pbrt.Decoder.nested d));
+    end
+    | Some (20, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(20)" pk
+    | Some (21, Pbrt.Varint) -> begin
+      v.is_serial <- Some (Pbrt.Decoder.bool d);
+    end
+    | Some (21, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(podcast), field(21)" pk
     | Some (_, payload_kind) -> Pbrt.Decoder.skip d payload_kind
   done;
   begin if not !id_is_set then Pbrt.Decoder.missing_field "id" end;
@@ -470,12 +707,24 @@ let rec decode_podcast d =
     Map_tile_types.id = v.id;
     Map_tile_types.title = v.title;
     Map_tile_types.slug = v.slug;
-    Map_tile_types.description = v.description;
+    Map_tile_types.descriptions = v.descriptions;
     Map_tile_types.homepage_url = v.homepage_url;
     Map_tile_types.images = v.images;
     Map_tile_types.episodes = v.episodes;
     Map_tile_types.location = v.location;
     Map_tile_types.tags = v.tags;
+    Map_tile_types.pub_date = v.pub_date;
+    Map_tile_types.last_build_date = v.last_build_date;
+    Map_tile_types.generator = v.generator;
+    Map_tile_types.language = v.language;
+    Map_tile_types.copyright = v.copyright;
+    Map_tile_types.editor_contact = v.editor_contact;
+    Map_tile_types.summary = v.summary;
+    Map_tile_types.author = v.author;
+    Map_tile_types.categories = v.categories;
+    Map_tile_types.explicit = v.explicit;
+    Map_tile_types.owner = v.owner;
+    Map_tile_types.is_serial = v.is_serial;
   } : Map_tile_types.podcast)
 
 let rec decode_term d =
@@ -726,6 +975,12 @@ let rec encode_image (v:Map_tile_types.image) encoder =
     Pbrt.Encoder.string x encoder;
   | None -> ();
   end;
+  begin match v.Map_tile_types.href with
+  | Some x -> 
+    Pbrt.Encoder.key (9, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
   begin match v.Map_tile_types.x_offset with
   | Some x -> 
     Pbrt.Encoder.key (6, Pbrt.Bits32) encoder; 
@@ -813,21 +1068,51 @@ let rec encode_content_location (v:Map_tile_types.content_location) encoder =
   end;
   ()
 
-let rec encode_podcast_episode (v:Map_tile_types.podcast_episode) encoder = 
-  Pbrt.Encoder.key (1, Pbrt.Varint) encoder; 
-  Pbrt.Encoder.int64_as_varint v.Map_tile_types.id encoder;
-  begin match v.Map_tile_types.title with
+let rec encode_category (v:Map_tile_types.category) encoder = 
+  begin match v.Map_tile_types.name with
+  | Some x -> 
+    Pbrt.Encoder.key (1, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  List.iter (fun x -> 
+    Pbrt.Encoder.key (2, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.nested (encode_category x) encoder;
+  ) v.Map_tile_types.children;
+  ()
+
+let rec encode_owner (v:Map_tile_types.owner) encoder = 
+  begin match v.Map_tile_types.name with
+  | Some x -> 
+    Pbrt.Encoder.key (1, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.email with
   | Some x -> 
     Pbrt.Encoder.key (2, Pbrt.Bytes) encoder; 
     Pbrt.Encoder.string x encoder;
   | None -> ();
   end;
-  begin match v.Map_tile_types.description with
-  | Some x -> 
+  ()
+
+let rec encode_podcast_episode_episode_type (v:Map_tile_types.podcast_episode_episode_type) encoder =
+  match v with
+  | Map_tile_types.Full -> Pbrt.Encoder.int_as_varint 1 encoder
+  | Map_tile_types.Trailer -> Pbrt.Encoder.int_as_varint 2 encoder
+  | Map_tile_types.Bonus -> Pbrt.Encoder.int_as_varint 3 encoder
+
+let rec encode_podcast_episode (v:Map_tile_types.podcast_episode) encoder = 
+  Pbrt.Encoder.key (1, Pbrt.Varint) encoder; 
+  Pbrt.Encoder.int64_as_varint v.Map_tile_types.id encoder;
+  List.iter (fun x -> 
+    Pbrt.Encoder.key (2, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  ) v.Map_tile_types.titles;
+  List.iter (fun x -> 
     Pbrt.Encoder.key (3, Pbrt.Bytes) encoder; 
     Pbrt.Encoder.string x encoder;
-  | None -> ();
-  end;
+  ) v.Map_tile_types.descriptions;
   List.iter (fun x -> 
     Pbrt.Encoder.key (4, Pbrt.Bytes) encoder; 
     Pbrt.Encoder.nested (encode_image x) encoder;
@@ -852,6 +1137,52 @@ let rec encode_podcast_episode (v:Map_tile_types.podcast_episode) encoder =
     Pbrt.Encoder.int64_as_varint x encoder;
   | None -> ();
   end;
+  begin match v.Map_tile_types.publisher_guid with
+  | Some x -> 
+    Pbrt.Encoder.key (9, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  List.iter (fun x -> 
+    Pbrt.Encoder.key (10, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  ) v.Map_tile_types.webpage_urls;
+  begin match v.Map_tile_types.duration with
+  | Some x -> 
+    Pbrt.Encoder.key (11, Pbrt.Bits64) encoder; 
+    Pbrt.Encoder.float_as_bits64 x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.explicit with
+  | Some x -> 
+    Pbrt.Encoder.key (12, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.subtitle with
+  | Some x -> 
+    Pbrt.Encoder.key (13, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.episode_number with
+  | Some x -> 
+    Pbrt.Encoder.key (14, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.episode_type with
+  | Some x -> 
+    Pbrt.Encoder.key (15, Pbrt.Varint) encoder; 
+    encode_podcast_episode_episode_type x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.author with
+  | Some x -> 
+    Pbrt.Encoder.key (16, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
   ()
 
 let rec encode_podcast (v:Map_tile_types.podcast) encoder = 
@@ -869,12 +1200,10 @@ let rec encode_podcast (v:Map_tile_types.podcast) encoder =
     Pbrt.Encoder.string x encoder;
   | None -> ();
   end;
-  begin match v.Map_tile_types.description with
-  | Some x -> 
+  List.iter (fun x -> 
     Pbrt.Encoder.key (4, Pbrt.Bytes) encoder; 
     Pbrt.Encoder.string x encoder;
-  | None -> ();
-  end;
+  ) v.Map_tile_types.descriptions;
   begin match v.Map_tile_types.homepage_url with
   | Some x -> 
     Pbrt.Encoder.key (5, Pbrt.Bytes) encoder; 
@@ -899,6 +1228,76 @@ let rec encode_podcast (v:Map_tile_types.podcast) encoder =
     Pbrt.Encoder.key (9, Pbrt.Bytes) encoder; 
     Pbrt.Encoder.nested (encode_tag x) encoder;
   ) v.Map_tile_types.tags;
+  begin match v.Map_tile_types.pub_date with
+  | Some x -> 
+    Pbrt.Encoder.key (10, Pbrt.Varint) encoder; 
+    Pbrt.Encoder.int64_as_varint x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.last_build_date with
+  | Some x -> 
+    Pbrt.Encoder.key (11, Pbrt.Varint) encoder; 
+    Pbrt.Encoder.int64_as_varint x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.generator with
+  | Some x -> 
+    Pbrt.Encoder.key (12, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.language with
+  | Some x -> 
+    Pbrt.Encoder.key (13, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.copyright with
+  | Some x -> 
+    Pbrt.Encoder.key (14, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.editor_contact with
+  | Some x -> 
+    Pbrt.Encoder.key (15, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.summary with
+  | Some x -> 
+    Pbrt.Encoder.key (16, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.author with
+  | Some x -> 
+    Pbrt.Encoder.key (17, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  List.iter (fun x -> 
+    Pbrt.Encoder.key (18, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.nested (encode_category x) encoder;
+  ) v.Map_tile_types.categories;
+  begin match v.Map_tile_types.explicit with
+  | Some x -> 
+    Pbrt.Encoder.key (19, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.owner with
+  | Some x -> 
+    Pbrt.Encoder.key (20, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.nested (encode_owner x) encoder;
+  | None -> ();
+  end;
+  begin match v.Map_tile_types.is_serial with
+  | Some x -> 
+    Pbrt.Encoder.key (21, Pbrt.Varint) encoder; 
+    Pbrt.Encoder.bool x encoder;
+  | None -> ();
+  end;
   ()
 
 let rec encode_term (v:Map_tile_types.term) encoder = 

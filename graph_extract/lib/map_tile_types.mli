@@ -17,6 +17,7 @@ type image = {
   width : float option;
   height : float option;
   title : string option;
+  href : string option;
   x_offset : float option;
   y_offset : float option;
   use_context : image_use_context option;
@@ -45,27 +46,62 @@ type content_location = {
   loc_y : float option;
 }
 
+type category = {
+  name : string option;
+  children : category list;
+}
+
+type owner = {
+  name : string option;
+  email : string option;
+}
+
+type podcast_episode_episode_type =
+  | Full 
+  | Trailer 
+  | Bonus 
+
 type podcast_episode = {
   id : int64;
-  title : string option;
-  description : string option;
+  titles : string list;
+  descriptions : string list;
   images : image list;
   media_files : media_file list;
   tags : tag list;
   location : content_location option;
   pub_time : int64 option;
+  publisher_guid : string option;
+  webpage_urls : string list;
+  duration : float option;
+  explicit : string option;
+  subtitle : string option;
+  episode_number : string option;
+  episode_type : podcast_episode_episode_type option;
+  author : string option;
 }
 
 type podcast = {
   id : int64;
   title : string option;
   slug : string option;
-  description : string option;
+  descriptions : string list;
   homepage_url : string option;
   images : image list;
   episodes : podcast_episode list;
   location : content_location option;
   tags : tag list;
+  pub_date : int64 option;
+  last_build_date : int64 option;
+  generator : string option;
+  language : string option;
+  copyright : string option;
+  editor_contact : string option;
+  summary : string option;
+  author : string option;
+  categories : category list;
+  explicit : string option;
+  owner : owner option;
+  is_serial : bool option;
 }
 
 type term = {
@@ -115,6 +151,7 @@ val default_image :
   ?width:float option ->
   ?height:float option ->
   ?title:string option ->
+  ?href:string option ->
   ?x_offset:float option ->
   ?y_offset:float option ->
   ?use_context:image_use_context option ->
@@ -149,15 +186,40 @@ val default_content_location :
   content_location
 (** [default_content_location ()] is the default value for type [content_location] *)
 
+val default_category : 
+  ?name:string option ->
+  ?children:category list ->
+  unit ->
+  category
+(** [default_category ()] is the default value for type [category] *)
+
+val default_owner : 
+  ?name:string option ->
+  ?email:string option ->
+  unit ->
+  owner
+(** [default_owner ()] is the default value for type [owner] *)
+
+val default_podcast_episode_episode_type : unit -> podcast_episode_episode_type
+(** [default_podcast_episode_episode_type ()] is the default value for type [podcast_episode_episode_type] *)
+
 val default_podcast_episode : 
   ?id:int64 ->
-  ?title:string option ->
-  ?description:string option ->
+  ?titles:string list ->
+  ?descriptions:string list ->
   ?images:image list ->
   ?media_files:media_file list ->
   ?tags:tag list ->
   ?location:content_location option ->
   ?pub_time:int64 option ->
+  ?publisher_guid:string option ->
+  ?webpage_urls:string list ->
+  ?duration:float option ->
+  ?explicit:string option ->
+  ?subtitle:string option ->
+  ?episode_number:string option ->
+  ?episode_type:podcast_episode_episode_type option ->
+  ?author:string option ->
   unit ->
   podcast_episode
 (** [default_podcast_episode ()] is the default value for type [podcast_episode] *)
@@ -166,12 +228,24 @@ val default_podcast :
   ?id:int64 ->
   ?title:string option ->
   ?slug:string option ->
-  ?description:string option ->
+  ?descriptions:string list ->
   ?homepage_url:string option ->
   ?images:image list ->
   ?episodes:podcast_episode list ->
   ?location:content_location option ->
   ?tags:tag list ->
+  ?pub_date:int64 option ->
+  ?last_build_date:int64 option ->
+  ?generator:string option ->
+  ?language:string option ->
+  ?copyright:string option ->
+  ?editor_contact:string option ->
+  ?summary:string option ->
+  ?author:string option ->
+  ?categories:category list ->
+  ?explicit:string option ->
+  ?owner:owner option ->
+  ?is_serial:bool option ->
   unit ->
   podcast
 (** [default_podcast ()] is the default value for type [podcast] *)

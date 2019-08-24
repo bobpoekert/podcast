@@ -1,6 +1,6 @@
 (library
     (name lib)
-    (libraries warc xml-light re murmur parmap art corecount cohttp utils ppx_deriving_protobuf))
+    (libraries warc xml-light re murmur parmap art corecount cohttp utils ppx_deriving_protobuf ocaml-protoc ptime))
 
 (env
  (dev

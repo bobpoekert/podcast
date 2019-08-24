@@ -14,6 +14,7 @@ type image = {
   width : float option;
   height : float option;
   title : string option;
+  href : string option;
   x_offset : float option;
   y_offset : float option;
   use_context : image_use_context option;
@@ -42,27 +43,62 @@ type content_location = {
   loc_y : float option;
 }
 
+type category = {
+  name : string option;
+  children : category list;
+}
+
+type owner = {
+  name : string option;
+  email : string option;
+}
+
+type podcast_episode_episode_type =
+  | Full 
+  | Trailer 
+  | Bonus 
+
 type podcast_episode = {
   id : int64;
-  title : string option;
-  description : string option;
+  titles : string list;
+  descriptions : string list;
   images : image list;
   media_files : media_file list;
   tags : tag list;
   location : content_location option;
   pub_time : int64 option;
+  publisher_guid : string option;
+  webpage_urls : string list;
+  duration : float option;
+  explicit : string option;
+  subtitle : string option;
+  episode_number : string option;
+  episode_type : podcast_episode_episode_type option;
+  author : string option;
 }
 
 type podcast = {
   id : int64;
   title : string option;
   slug : string option;
-  description : string option;
+  descriptions : string list;
   homepage_url : string option;
   images : image list;
   episodes : podcast_episode list;
   location : content_location option;
   tags : tag list;
+  pub_date : int64 option;
+  last_build_date : int64 option;
+  generator : string option;
+  language : string option;
+  copyright : string option;
+  editor_contact : string option;
+  summary : string option;
+  author : string option;
+  categories : category list;
+  explicit : string option;
+  owner : owner option;
+  is_serial : bool option;
 }
 
 type term = {
@@ -108,6 +144,7 @@ let rec default_image
   ?width:((width:float option) = None)
   ?height:((height:float option) = None)
   ?title:((title:string option) = None)
+  ?href:((href:string option) = None)
   ?x_offset:((x_offset:float option) = None)
   ?y_offset:((y_offset:float option) = None)
   ?use_context:((use_context:image_use_context option) = None)
@@ -117,6 +154,7 @@ let rec default_image
   width;
   height;
   title;
+  href;
   x_offset;
   y_offset;
   use_context;
@@ -154,46 +192,104 @@ let rec default_content_location
   loc_y;
 }
 
+let rec default_category 
+  ?name:((name:string option) = None)
+  ?children:((children:category list) = [])
+  () : category  = {
+  name;
+  children;
+}
+
+let rec default_owner 
+  ?name:((name:string option) = None)
+  ?email:((email:string option) = None)
+  () : owner  = {
+  name;
+  email;
+}
+
+let rec default_podcast_episode_episode_type () = (Full:podcast_episode_episode_type)
+
 let rec default_podcast_episode 
   ?id:((id:int64) = 0L)
-  ?title:((title:string option) = None)
-  ?description:((description:string option) = None)
+  ?titles:((titles:string list) = [])
+  ?descriptions:((descriptions:string list) = [])
   ?images:((images:image list) = [])
   ?media_files:((media_files:media_file list) = [])
   ?tags:((tags:tag list) = [])
   ?location:((location:content_location option) = None)
   ?pub_time:((pub_time:int64 option) = None)
+  ?publisher_guid:((publisher_guid:string option) = None)
+  ?webpage_urls:((webpage_urls:string list) = [])
+  ?duration:((duration:float option) = None)
+  ?explicit:((explicit:string option) = None)
+  ?subtitle:((subtitle:string option) = None)
+  ?episode_number:((episode_number:string option) = None)
+  ?episode_type:((episode_type:podcast_episode_episode_type option) = None)
+  ?author:((author:string option) = None)
   () : podcast_episode  = {
   id;
-  title;
-  description;
+  titles;
+  descriptions;
   images;
   media_files;
   tags;
   location;
   pub_time;
+  publisher_guid;
+  webpage_urls;
+  duration;
+  explicit;
+  subtitle;
+  episode_number;
+  episode_type;
+  author;
 }
 
 let rec default_podcast 
   ?id:((id:int64) = 0L)
   ?title:((title:string option) = None)
   ?slug:((slug:string option) = None)
-  ?description:((description:string option) = None)
+  ?descriptions:((descriptions:string list) = [])
   ?homepage_url:((homepage_url:string option) = None)
   ?images:((images:image list) = [])
   ?episodes:((episodes:podcast_episode list) = [])
   ?location:((location:content_location option) = None)
   ?tags:((tags:tag list) = [])
+  ?pub_date:((pub_date:int64 option) = None)
+  ?last_build_date:((last_build_date:int64 option) = None)
+  ?generator:((generator:string option) = None)
+  ?language:((language:string option) = None)
+  ?copyright:((copyright:string option) = None)
+  ?editor_contact:((editor_contact:string option) = None)
+  ?summary:((summary:string option) = None)
+  ?author:((author:string option) = None)
+  ?categories:((categories:category list) = [])
+  ?explicit:((explicit:string option) = None)
+  ?owner:((owner:owner option) = None)
+  ?is_serial:((is_serial:bool option) = None)
   () : podcast  = {
   id;
   title;
   slug;
-  description;
+  descriptions;
   homepage_url;
   images;
   episodes;
   location;
   tags;
+  pub_date;
+  last_build_date;
+  generator;
+  language;
+  copyright;
+  editor_contact;
+  summary;
+  author;
+  categories;
+  explicit;
+  owner;
+  is_serial;
 }
 
 let rec default_term 

@@ -266,6 +266,21 @@ let maprange f n =
 let contains l v = List.exists (fun vv -> vv == v) l
 let remove a b = List.filter (fun v -> not (contains b v)) a
 
+let filter_none l = List.filter (fun v -> 
+  match v with 
+  | None -> false 
+  | Some(_) -> true
+) l
+
+let rec _filter_none_unwrap inp res = 
+  if inp = [] then res else 
+  let h = List.hd inp in 
+  match h with 
+  | None -> _filter_none_unwrap (List.tl inp) res 
+  | Some(v) -> _filter_none_unwrap (List.tl inp) (v :: res)
+
+let filter_none_unwrap l = _filter_none_unwrap l []
+
 let rec reduce_fds fds reducer res = 
   match fds with
   | [] -> res 

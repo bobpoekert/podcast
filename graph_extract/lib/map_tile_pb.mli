@@ -21,6 +21,15 @@ val encode_media_file : Map_tile_types.media_file -> Pbrt.Encoder.t -> unit
 val encode_content_location : Map_tile_types.content_location -> Pbrt.Encoder.t -> unit
 (** [encode_content_location v encoder] encodes [v] with the given [encoder] *)
 
+val encode_category : Map_tile_types.category -> Pbrt.Encoder.t -> unit
+(** [encode_category v encoder] encodes [v] with the given [encoder] *)
+
+val encode_owner : Map_tile_types.owner -> Pbrt.Encoder.t -> unit
+(** [encode_owner v encoder] encodes [v] with the given [encoder] *)
+
+val encode_podcast_episode_episode_type : Map_tile_types.podcast_episode_episode_type -> Pbrt.Encoder.t -> unit
+(** [encode_podcast_episode_episode_type v encoder] encodes [v] with the given [encoder] *)
+
 val encode_podcast_episode : Map_tile_types.podcast_episode -> Pbrt.Encoder.t -> unit
 (** [encode_podcast_episode v encoder] encodes [v] with the given [encoder] *)
 
@@ -62,6 +71,15 @@ val decode_media_file : Pbrt.Decoder.t -> Map_tile_types.media_file
 
 val decode_content_location : Pbrt.Decoder.t -> Map_tile_types.content_location
 (** [decode_content_location decoder] decodes a [content_location] value from [decoder] *)
+
+val decode_category : Pbrt.Decoder.t -> Map_tile_types.category
+(** [decode_category decoder] decodes a [category] value from [decoder] *)
+
+val decode_owner : Pbrt.Decoder.t -> Map_tile_types.owner
+(** [decode_owner decoder] decodes a [owner] value from [decoder] *)
+
+val decode_podcast_episode_episode_type : Pbrt.Decoder.t -> Map_tile_types.podcast_episode_episode_type
+(** [decode_podcast_episode_episode_type decoder] decodes a [podcast_episode_episode_type] value from [decoder] *)
 
 val decode_podcast_episode : Pbrt.Decoder.t -> Map_tile_types.podcast_episode
 (** [decode_podcast_episode decoder] decodes a [podcast_episode] value from [decoder] *)

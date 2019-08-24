@@ -4,6 +4,7 @@ message Image {
     optional float width = 3;
     optional float height = 4;
     optional string title = 8;
+    optional string href = 9;
 
     // the image the url points to may be a texture atlas,
     // in which case we want the (x_offset, y_offset, width, height) bbox
@@ -43,28 +44,62 @@ message ContentLocation {
     optional float loc_y = 10;
 }
 
+message Category {
+    optional string name = 1;
+    repeated Category children = 2;
+}
+
+message Owner {
+    optional string name = 1;
+    optional string email = 2;
+}
+
 message Podcast {
     required uint64 id = 1;
     optional string title = 2;
     optional string slug = 3;
-    optional string description = 4;
+    repeated string descriptions = 4;
     optional string homepage_url = 5;
     repeated Image images = 6;
     repeated PodcastEpisode episodes = 7;
     optional ContentLocation location = 8;
     repeated Tag tags = 9;
+    optional int64 pub_date = 10;
+    optional int64 last_build_date = 11;
+    optional string generator = 12;
+    optional string language = 13;
+    optional string copyright = 14;
+    optional string editor_contact = 15;
+    optional string summary = 16;
+    optional string author = 17;
+    repeated Category categories = 18;
+    optional string explicit = 19;
+    optional Owner owner = 20;
+    optional bool is_serial = 21;
 }
 
 message PodcastEpisode {
     required uint64 id = 1;
-    optional string title = 2;
-    optional string description = 3;
+    repeated string titles = 2;
+    repeated string descriptions = 3;
     repeated Image images = 4;
     repeated MediaFile media_files = 5;
     repeated Tag tags = 6;
     optional ContentLocation location = 7;
     optional int64 pub_time = 8;
-
+    optional string publisher_guid = 9; // taken from the rss feed DO NOT TRUST
+    repeated string webpage_urls = 10;
+    optional double duration = 11;
+    optional string explicit = 12;
+    optional string subtitle = 13;
+    optional string episode_number = 14;
+    enum EpisodeType {
+        FULL = 1;
+        TRAILER = 2;
+        BONUS = 3;
+    }
+    optional EpisodeType episode_type = 15;
+    optional string author = 16;
 }
 
 message Term {
