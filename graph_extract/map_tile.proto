@@ -1,0 +1,79 @@
+message Image {
+    optional string url = 1;
+    optional string mime_type = 2;
+    optional float width = 3;
+    optional float height = 4;
+    enum UseContext {
+        THUMBNAIL = 0;
+        COVER = 1;
+        FAVICON = 2;
+        APP_ICON = 3;
+        AVATAR = 3;
+    }
+    optional UseContext use_context = 5;
+}
+
+message MediaFile {
+    optional string url = 1;
+    optional string mime_type = 2;
+    enum MediaType {
+        AUDIO = 1;
+        VIDEO = 2;
+        OTHER = 3;
+    }
+    optional MediaType media_type = 3;
+    optional float length = 4; // length in milliseconds
+}
+
+message Podcast {
+    required uint64 id = 1;
+    optional string title = 2;
+    optional string slug = 3;
+    optional string description = 4;
+    optional string homepage_url = 5;
+    repeated Image images = 6;
+    repeated PodcastEpisode episodes = 7;
+}
+
+message PodcastEpisode {
+    required uint64 id = 1;
+    optional string title = 2;
+    optional string description = 3;
+    repeated Image images = 4;
+    repeated MediaFile media_files = 5;
+}
+
+message Term {
+    required string value = 1;
+    optional float score = 2;
+    optional float x = 3;
+    optional float y = 4;
+}
+
+message ClusterSeed {
+    required float x = 1;
+    required float y = 2;
+    required uint32 label = 3;
+}
+
+message Delta {
+    required float dx = 1;
+    required float dy = 2;
+}
+
+message Path {
+    required float start_x = 1;
+    required float start_y = 2;
+    repeated Delta deltas = 3;
+}
+
+message MapTile {
+    required float min_x = 1;
+    required float max_x = 2;
+    required float min_y = 3;
+    required float max_y = 4;
+    repeated Podcast podcasts = 5;
+    repeated Term terms = 6;
+    repeated Path paths = 7;
+    repeated ClusterSeed seeds = 8;
+}

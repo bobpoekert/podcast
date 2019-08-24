@@ -9,4 +9,5 @@
 *.so
 *.o
 *.a
-*.bin
+*.bin*
+*.exe

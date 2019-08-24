@@ -157,6 +157,7 @@ let calc_point x y dists_2d dists_arrays  =
       let dist_y = Array2.get dists_2d i 1 in 
       Array.set weights i (distance x y dist_x dist_y);
     done in 
+    let k_neighbors = min n_dists k_neighbors in 
     let top_k_dists = Array.make k_neighbors (Array.get dists_arrays 0) in 
     let top_k_weights = Array.make k_neighbors 0.0 in 
     let weight_idxes = argsort weights in 
@@ -260,12 +261,18 @@ let make_word_map dists_fname fname_2d outfname out_width out_height min_x min_y
   let dists = Array.map (Array.get dists) dists_idxes in 
   let dists_2d = load_array2 fname_2d Float32 n_dists in
   let dists_2d = array2_slice_rows dists_2d dists_idxes in 
+  let inner_scale_x, inner_scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
+  let big_min_x, big_max_x, big_min_y, big_max_y = bounds_array2 dists_2d in
+  let downscale_x = (big_max_x -. big_min_x) /. (max_x -. min_x) in 
+  let scale_x x = (inner_scale_x x) *. downscale_x in 
+  let downscale_y = (big_max_y -. big_min_y) /. (max_y -. min_y) in 
+  let scale_y y = (inner_scale_y y) *. downscale_y in 
   let bbox_mask = topics_in_bbox dists_2d min_x min_y max_x max_y in 
+  let _ = Printf.printf "%d\n" (Array.length bbox_mask) in
   let dists_2d = array2_slice_rows dists_2d bbox_mask in 
   let dists = Array.map (fun idx -> Array.get dists idx) bbox_mask in 
   let big_tree = into_big_tree dists in 
   let big_tree = (big_tree, Art.sum big_tree) in
-  let scale_x, scale_y = scalers dists_2d (float_of_int out_width) (float_of_int out_height) in 
   let ncores = (Corecount.count () |> Nativeint.to_int) in
   let chunksize_x = out_width / ncores in
   let p_dist = 1.0 /. (float_of_int (Array.length dists)) in 
@@ -276,8 +283,10 @@ let make_word_map dists_fname fname_2d outfname out_width out_height min_x min_y
     let render start_x end_x = (
       for x = start_x to end_x do 
         for y = 0 to (out_height - 1) do 
-          let res = (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays) in 
-          set_array_pairs out x y res
+          try
+              let res = (calc_point (scale_x (float_of_int x)) (scale_y (float_of_int y)) dists_2d dists_arrays) in 
+              set_array_pairs out x y res
+          with Invalid_argument _ -> ()
         done
       done
     ) in
@@ -285,7 +294,7 @@ let make_word_map dists_fname fname_2d outfname out_width out_height min_x min_y
       parrun (fun i -> 
         let start_x = chunksize_x * i in 
         render start_x (start_x + chunksize_x - 1)
-      ) else render 0 out_width
+      ) else render 0 (out_width - 1)
     )
 
 let () = 
